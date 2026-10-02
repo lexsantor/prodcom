@@ -86,7 +86,7 @@ Tokens (OKLCH, COLOR-004 construction; anchor = slate ink on cool paper):
 
 ## Constraints & Preserved Patterns
 
-- Stack (detected/declared this run): Vite 7 + React 19 + TypeScript, plain CSS, static prerender (renderToString at build) so all content exists without JavaScript (A11Y-009). No backend; dataset local in `src/data/products.ts`.
+- Stack (declared this run): Vite 8 + React 19 + TypeScript 7, plain CSS, Playwright for E2E, `node --test` for logic, static prerender (renderToString at build) so all content exists without JavaScript (A11Y-009). No backend; dataset local in `src/data/products.ts`.
 - Scoring model must stay deterministic and documented on the page (T-6); any change to weights updates the Method section in the same commit.
 
 ## Known Exceptions
@@ -100,20 +100,33 @@ None.
 ## Fingerprint History
 
 - 2026-10-02 · gen 1 · macrostructure: thin masthead → full-width ledger with pinned tray → generated head-to-head matrix → method · typography: Archivo single family, width axis as hierarchy · color-anchor: slate ink on cool paper, teal-ink selection, butter highlighter winner · density: Medium (7) · motion: Low.
+- 2026-10-02 · gen 1 · **CRITIQUE Level 1 (pre-dispatch, recorded before Level 2 brief was written)** on build `26014df` + working-tree fixes (row dedupe, 320 px stack/key/tray fixes, replace-button wrap):
+  1. Genericness 4/5. Skeleton derives from T-2 (ledger → user-generated head-to-head); no SLOP-020 marketing sections; SLOP-021 not triggered (no question-led document, no figure strip). SLOP-011 gestalt: not clusters 1/2/4; partial overlap with cluster 3 (hairline rules, near-zero radius) carried by a product reason (tabular data needs rules), not newspaper columns. Concept structural test: with logo, palette and copy removed, the page is still "whole field → your marks → generated comparison" — lives in macrostructure and interaction. Committed-dimension carriers: composition (whole-field ledger vs. funnel) carried; interaction (direct pick-up-to-4 + replace vs. weighted sliders) carried; typography (one width-variable grotesque vs. editorial serif) carried by expanded headings/wordmark and condensed column heads. Adopted references carried: REF-017 (ledger is first surface), REF-026 (4-slot tray, "x of 15", seat fit), PRN-0104 (team-size pricing with arithmetic, exclusion), REF-022 (attribute-first stacks on phones). Finding: on phones the masthead (~520 px at 375) pushes the first product below the fold.
+  2. Hierarchy 4/5. Squint: score and price columns, selected rows and the winner column survive blur. Finding: in the ledger coverage bar, "limited" cells are weakly distinguished from "not offered" (text carries it).
+  3. Distinctiveness: not assessable: first Fingerprint History entry.
+  4. Craft 4/5 (layout-interaction, typography, color, content-copy, motion in scope). INTX-003 violation found and fixed (replace buttons wrapped at 320). Finding: matrix winner column fill is heavy across ~50 rows; finding: the redundant "Automation runs" row (removed).
+  5. Accessibility: A11Y-001 pass (all text pairs ≥ 6.2:1, UI ≥ 5.5:1, computed from tokens); A11Y-002 pass (keyboard-only E2E, `:focus-visible` on every control, focus moved to refusal message and back); A11Y-003 pass (reduced-motion block, smooth scroll gated in JS); A11Y-004 pass (marks/glyphs `aria-hidden`, icon buttons named); A11Y-009 pass (prerendered: 10 ledger rows with JS disabled, E2E); A11Y-010 pass (root clip neutralised, 0 elements past viewport at 320 with tray-full state and details open); A11Y-011 pass (selection = filled numbered box + row bar + text; winner = "Best overall" label + top rule + column frame; best-in-row = text tags); A11Y-012 n/a (no dismissible overlays).
+  6. Technical 4/5. LAYOUT-004 `clip` on html; MOTION-004/008/009 respected; tests: 10 unit + 11 E2E passing; no console errors.
+
+- 2026-10-02 · gen 1 · **CRITIQUE Level 2** (fresh isolated `lexia-design:visual-critic`, literal rubric transport verified by substring check against `critique-protocol.md`; brief excluded `.design/` and all Level 1 results). Scores: Genericness 4, Hierarchy 4, Distinctiveness not assessable (first entry), Craft 3, Accessibility 3, Technical 4. Structural test: passes. Verdict "ship with fixes".
+  Synthesis against the pre-dispatch Level 1: **disagreement on Accessibility and Craft.** Level 1 passed A11Y-004 and scored Craft 4; Level 2 found that below 900 px the tray slots exposed no product names to assistive tech (M2), that slot names broke mid-word at 1440 with one product selected (M1; Level 1's screenshots only covered 0 and 3 selected), and that the tray covered controls on phones (M3). All three were verified in code and adopted. Typography carrier: Level 2 judged the "width axis as hierarchy" claim barely perceptible; the claim is **revised by strengthening, not retracted**: section and group headings set at 125% width, column heads at 72%, so the axis now visibly separates headings from data labels.
+  Corrections applied: M1 slot names `nowrap` with an actions column that wraps its hint instead of squeezing slots; M2 slot names always in the DOM (visually hidden below 600 px), test guard added; M3 empty tray is `position: static` below 900 px, replace panel shows names in a 2-column grid, `scroll-padding-bottom` grows while it is open; m1 remove control shown from 600 px (2-column slots between 600 and 899); m2 support line set small; m3 score shown as "N / 100" in ledger cards, matrix heads and verdict; m4 winner "Best" text kept below 420 px on its own line; m5 "Jump to" section select on phone stacks. Plus own Level 1 findings: tighter masthead, hatched "limited" coverage cells, removed duplicated "Automation runs" row, fixed INTX-003 wrap, fixed a flex-shrink bug that collapsed tray marks to 1 px (found while re-verifying).
+- 2026-10-02 · gen 1 · **Level 1 re-run, formed after Level 2 (not independent of it):** Genericness 4, Hierarchy 4, Distinctiveness not assessable, Craft 4, Accessibility 4 (residual: replace panel covers the row being decided on phones while open; transient, focus is inside the panel), Technical 4.
 
 ## Accessibility Notes
 
 - **C-1** check · active · Every interaction in the ledger, tray and head-to-head is operable by keyboard alone with visible `:focus-visible`; sticky headers and the pinned tray never hide the focused element (scroll-padding).
   src: BUILD DESIGN 2026-10-02 · deps: T-4
 - Selection controls are native checkboxes with accessible names ("Compare Northlane"); limit and replace messages announced through a polite live region; winner announced in text.
-- Real `<table>` semantics where data is tabular (ledger ≥ 900px, head-to-head ≥ 960px), `th scope` for both axes; on narrow screens the same data uses lists with explicit "product: value" pairs.
+- Real `<table>` semantics where data is tabular (ledger ≥ 1040px, head-to-head ≥ 960px), `th scope` for both axes; on narrow screens the same data uses lists with explicit "product: value" pairs.
 
 ## Responsive Notes
 
 - **C-2** check · active · At 320 CSS px: all 10 products inspectable and selectable, max-4 enforced with replace, 2–4 selected comparable with verdict visible, no page-level horizontal scroll.
   src: BUILD DESIGN 2026-10-02 · deps: T-4, T-5, T-6
-- Ledger: table ≥ 900px; below, each product becomes a rule-separated block keeping the product name as the key line (REF-017 phone caveat).
-- Head-to-head: table with sticky product header ≥ 960px; below, attribute-first stacks (REF-022) with a sticky key strip naming slots 1–4 and the winner.
+- Ledger: table ≥ 1040px; below, each product becomes a rule-separated block keeping the product name as the key line (REF-017 phone caveat).
+- Head-to-head: table with sticky product header ≥ 960px; below, attribute-first stacks (REF-022) with a sticky key strip naming slots 1–4 and the winner, and a "Jump to" section select.
+- Tray: sticky at the bottom of the ledger section; below 900 px it is static while empty; slot names visible from 600 px (2×2 slots 600–899), number + mark only below 600 with names kept for assistive tech.
 
 ## Retired
 

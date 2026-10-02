@@ -30,17 +30,17 @@ export function Tray({ ids, blocked, onReplace, onKeep, onRemove, onClear }: Pro
   const slots = Array.from({ length: MAX_SELECTED }, (_, i) => ids[i])
 
   return (
-    <div className="tray-dock">
+    <div className="tray-dock" data-empty={n === 0 || undefined}>
       <div className="tray" role="region" aria-label="Your comparison" data-count={n}>
         {blocked && (
           <div className="tray-full" id="tray-full" tabIndex={-1} role="group" aria-labelledby="tray-full-msg">
             <p id="tray-full-msg">
-              <strong>Your comparison is full.</strong> It holds up to four products. Replace one with {nameOf(blocked)}, or keep these four.
+              <strong>Your comparison is full.</strong> Which one should {nameOf(blocked)} replace?
             </p>
             <div className="tray-full-actions">
               {ids.map((id) => (
                 <button key={id} type="button" className="btn btn-quiet" onClick={() => onReplace(id)}>
-                  Replace {nameOf(id)}
+                  <span className="sr-only">Replace </span>{nameOf(id)}<span className="sr-only"> with {nameOf(blocked)}</span>
                 </button>
               ))}
               <button type="button" className="btn btn-link" onClick={onKeep}>Keep these four</button>
@@ -50,7 +50,7 @@ export function Tray({ ids, blocked, onReplace, onKeep, onRemove, onClear }: Pro
 
         <div className="tray-main">
           <p className="tray-count" id="tray-count" tabIndex={-1}>
-            <strong>{n} of {MAX_SELECTED}</strong> {n === MAX_SELECTED ? 'selected, tray full' : 'selected'}
+            <strong>{n} of {MAX_SELECTED}</strong> <span className="tray-count-word" aria-hidden="true">{n === MAX_SELECTED ? 'selected, tray full' : 'selected'}</span><span className="sr-only">{n === MAX_SELECTED ? ' selected, tray full' : ' selected'}</span>
           </p>
 
           <ol className="slots" aria-label="Comparison slots">
@@ -83,10 +83,10 @@ export function Tray({ ids, blocked, onReplace, onKeep, onRemove, onClear }: Pro
             )}
             {n === 1 && (
               <p className="tray-hint">
-                Tick one more to compare. <a href="#compare" onClick={jumpToCompare}>See close alternatives</a>
+                Tick one more. <a href="#compare" onClick={jumpToCompare}>See alternatives</a>
               </p>
             )}
-            {n === 0 && <p className="tray-hint">Tick up to four products to compare them side by side.</p>}
+            {n === 0 && <p className="tray-hint">Tick up to four to compare.</p>}
             {n > 0 && <button type="button" className="btn btn-link" onClick={onClear}>Clear all</button>}
           </div>
         </div>

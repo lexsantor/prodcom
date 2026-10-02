@@ -122,7 +122,6 @@ export function buildGroups(team: number): Group[] {
       features: coreValues('automation'),
       rows: [
         ...coreRows('automation'),
-        plain('runs', 'Automation runs', (s) => s.product.automationRuns),
         {
           key: 'integrations',
           label: 'Native integrations',

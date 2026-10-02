@@ -116,7 +116,7 @@ export function Ledger(props: Props) {
                     <td className="col-features"><CoverageBar c={coreCoverage(p)} /></td>
                     <td className="col-adopt">
                       <span className="line">{CURVE_LABEL[p.onboarding.curve]}</span>
-                      <span className="line muted">Support {p.support.response.toLowerCase()}</span>
+                      <span className="line muted small">Support {p.support.response.toLowerCase()}</span>
                     </td>
                     <td className="col-more">
                       <button
@@ -147,7 +147,7 @@ export function Ledger(props: Props) {
               <li key={p.id} className="lcard" data-selected={slot >= 0 || undefined}>
                 <div className="lcard-top">
                   <ProductName product={p} heading />
-                  <p className="lcard-score"><span className="score">{s.overall}</span><span className="muted"> score</span></p>
+                  <p className="lcard-score"><span className="score">{s.overall}</span><span className="muted"> / 100</span><span className="sr-only"> score</span></p>
                 </div>
                 <dl className="facts">
                   <div><dt>Price for {team}</dt><dd><Price s={s} team={team} /></dd></div>
@@ -157,7 +157,7 @@ export function Ledger(props: Props) {
                     <dt>Adoption</dt>
                     <dd>
                       <span className="line">{CURVE_LABEL[p.onboarding.curve]}</span>
-                      <span className="line muted">Support {p.support.response.toLowerCase()}</span>
+                      <span className="line muted small">Support {p.support.response.toLowerCase()}</span>
                     </dd>
                   </div>
                 </dl>

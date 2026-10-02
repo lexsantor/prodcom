@@ -13,7 +13,7 @@ const SHAPES: Record<Product['mark']['shape'], React.ReactNode> = {
   hex: <path d="M10 3.5 15.6 6.75v6.5L10 16.5l-5.6-3.25v-6.5z" />,
 }
 
-/** Abstract demo brand mark. Decorative: the product name is always next to it. */
+/** Abstract demo brand mark. Decorative: every use has the product name beside it, visibly or as sr-only text. */
 export function Mark({ product, size = 20 }: { product: Product; size?: number }) {
   const { shape, hue } = product.mark
   return (

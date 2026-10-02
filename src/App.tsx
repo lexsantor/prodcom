@@ -46,7 +46,7 @@ export function App() {
     else q.delete('compare')
     if (team !== TEAM_DEFAULT) q.set('team', String(team))
     else q.delete('team')
-    const query = q.toString()
+    const query = q.toString().replace(/%2C/g, ',') // readable shared links
     window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
   }, [ids, team, restored])
 

@@ -100,7 +100,7 @@ function MatrixTable({ picked, groups, winnerId, team, onRemove }: {
                 </span>
                 <span className="m-head-name"><Mark product={s.product} size={22} />{s.product.name}</span>
                 <span className="m-head-meta">
-                  <span><span className="num">{s.overall}</span> score</span>
+                  <span><span className="num">{s.overall}</span> / 100</span>
                   <button type="button" className="btn btn-link small" onClick={() => onRemove(s.product.id, 'compare-title')}>
                     Remove<span className="sr-only"> {s.product.name}</span>
                   </button>
@@ -149,13 +149,28 @@ function MatrixTable({ picked, groups, winnerId, team, onRemove }: {
 function Stacks({ picked, groups, winnerId }: { picked: Scored[]; groups: Visible; winnerId?: string }) {
   return (
     <div className="stacks">
+      <label className="jump">
+        <span>Jump to</span>
+        <select
+          defaultValue=""
+          onChange={(e) => {
+            const target = document.getElementById(`s-${e.target.value}`)
+            target?.scrollIntoView({ block: 'start' })
+            target?.focus({ preventScroll: true })
+            e.target.value = ''
+          }}
+        >
+          <option value="" disabled>Choose a section</option>
+          {groups.map(({ g }) => <option key={g.key} value={g.key}>{g.title}</option>)}
+        </select>
+      </label>
       <ol className="stack-key" aria-label="Your picks">
         {picked.map((s, i) => (
           <li key={s.product.id} data-best={s.product.id === winnerId || undefined}>
             <span className="slot-n" aria-hidden="true">{i + 1}</span>
             <Mark product={s.product} size={18} />
             <span className="stack-key-name">{s.product.name}</span>
-            {s.product.id === winnerId && <span className="best-label"><BestGlyph />Best</span>}
+            {s.product.id === winnerId && <span className="best-label"><BestGlyph /><span className="best-text">Best</span><span className="sr-only"> overall</span></span>}
           </li>
         ))}
       </ol>
@@ -163,7 +178,7 @@ function Stacks({ picked, groups, winnerId }: { picked: Scored[]; groups: Visibl
         const leader = groupLeader(g, picked)
         return (
           <section key={g.key} className="sgroup" aria-labelledby={`s-${g.key}`}>
-            <h3 id={`s-${g.key}`}>{g.title}</h3>
+            <h3 id={`s-${g.key}`} tabIndex={-1}>{g.title}</h3>
             {leader && <p className="m-group-leader">{leader}</p>}
             {rows.length === 0 && <p className="m-group-leader">All rows the same for your picks</p>}
             {rows.map((r) => {
@@ -222,7 +237,7 @@ function EmptyState({ scores, onSelect }: { scores: Map<string, Scored>; onSelec
             className="btn btn-quiet"
             onClick={() => onSelect(top.map((s) => s.product.id), `Added the top three by score: ${top.map((s) => s.product.name).join(', ')}.`)}
           >
-            Start with the top three by score
+            Try the top three by score
           </button>
         </div>
       </div>
