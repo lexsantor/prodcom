@@ -84,10 +84,51 @@ Tokens (OKLCH, COLOR-004 construction; anchor = slate ink on cool paper):
 - Shape: radius 3px on controls and table, 10px on the tray only (the one floating object); a single soft shadow only on the pinned tray. No cards for products.
 - Motion tier: Low. Only state feedback (selection fill 120ms, tray slot fill, limit message fade) and the jump to the Head-to-head (smooth scroll only without reduced motion). Hover gated (MOTION-008); focus instant (MOTION-009); reduced motion removes movement (MOTION-007).
 
+### Iteration 2 (2026-10-02): decision efficiency in the Head-to-head
+
+Classification: section-scope REDESIGN of the Head-to-head on an existing project; register/genre/dials reused (hybrid, modern-minimal, 5/2/7).
+
+Diagnosis (measured on the production build):
+- 320 px, 4 picks: Head-to-head ≈ 14,300 px; 50 attribute rows; only 7 identical. 375 px, 3 picks: 10,900 px, 10 identical. 1440 px, 2 picks: 3,980 px, 13 identical.
+- "Show only differences" barely shortens a diverse selection, because almost every row differs. Its premise (different = matters) is wrong for the job.
+- The real cost is unweighted evidence. There is a six-claim verdict, then 50 rows of equal weight, with nothing that says which rows explain the verdict or where the winner loses. Questions 1–3 are answered in the verdict; 4 (which differences matter), 5 (where another product beats the winner) and 6 (evidence for a claim) require reading every row. Verdict claims are not linked to the rows that prove them.
+- On phones each attribute costs about 190–310 px (four product lines), so unweighted evidence becomes scrolling cost. Product context is not lost (names on every line plus a sticky key), and attribute context is not lost (heading per attribute). The length is a symptom, not the problem.
+- Repetition is real but minor: identical rows on phones repeat the same value four times.
+- Desktop masthead (≈390 px at 1440×900): the ledger heading, team-size input and column heads are in the first viewport; the first data row starts at about y=590. The ledger is about 1,000 px tall on its own, so no masthead size shows all ten rows; the masthead carries the proposition, the demo disclosure and the orientation that first-time visitors need. Judged not materially harmful (SI-2: the intent "reach the field quickly" is met), so it is unchanged.
+
+Problem profile: deep but infrequent reading of a decision among 2–4 alternatives; quick verdict first, then evidence on demand; 50 attributes; phone and laptop; the user returns to it when sharing.
+
+Expected magnitude: moderate and contained to the Head-to-head (rows model, verdict, comparison controls, phone stacks, CSS). The page macrostructure, ledger, tray, scoring model, tokens and URL contract are unchanged.
+
+Committed response, "Evidence ranked against the winner":
+- Every row is classified deterministically against the winner using an ordinal rank per attribute (feature level, price, score, rating, counts, learning curve, response time, uptime): winner behind, winner ahead, differs (not ordinal), or same.
+- A view control replaces the binary switch. It offers "Where <winner> is behind (n)", "All differences (n)" and "Everything (n)", and each option shows the number of rows it leaves (REF-037). The default stays "Everything", so depth is never hidden by default.
+- Rows where the winner is behind carry a text flag. Rows that are the same for every pick recede (REF-015: quiet by default, loud by exception).
+- Each group header states the winner's position ("Northlane ahead on 3, behind on 1, 2 the same").
+- Verdict claims link to their evidence. Each "Choose X if" reason links to the group that proves it, and the verdict links to the "is behind" view.
+- On phones, rows identical for every pick collapse into one "Same for all" line instead of repeating.
+
+References (new shortlist for this problem): REF-037 adopted (counted view options); REF-015 adopted (emphasis only for rows where the winner is behind, same rows quiet); PRN-0003 rejected (its do_not_apply_to excludes working product views); REF-022 not re-adopted (already carried; no new decision); REF-014 rejected (one-at-a-time triage, not cross-record comparison).
+
+Alternatives rejected:
+- Groups collapsed into accordions by default: 10 extra taps, hides most evidence behind disclosure cost.
+- One product per tab or swipe on phones: breaks per-attribute co-presence, which is the comparison itself.
+- Deleting low-value rows (templates, storage, web app): reduces depth for little gain; the view control handles priority.
+- A horizontal-scroll mini-table on phones: four values at about 70 px each are unreadable, and it adds two-dimensional scrolling.
+- Defaulting to "differences only": it hides absolute facts by default and barely helps a diverse selection.
+
+Design anchors: ledger, tray, verdict panel, butter winner column with "Best overall" label, grouped matrix with sticky header, attribute-first phone stacks, Method section: all kept. The view control takes over the role of the differences switch.
+
 ## Constraints & Preserved Patterns
 
 - Stack (declared this run): Vite 8 + React 19 + TypeScript 7, plain CSS, Playwright for E2E, `node --test` for logic, static prerender (renderToString at build) so all content exists without JavaScript (A11Y-009). No backend; dataset local in `src/data/products.ts`.
 - Scoring model must stay deterministic and documented on the page (T-6); any change to weights updates the Method section in the same commit.
+
+- **D-5** decision:P4 · active · Preserved contracts: query parameters `compare` (comma list, ≤4, slot order) and `team` (1–500); anchors `#ledger`, `#compare`, `#method`, `#top`; section headings "All ten tools", "Head-to-head", "How the Prodcom score works"; checkbox accessible names "Compare <product>".
+  src: inspect:src/App.tsx, 2026-10-02
+
+- **D-6** decision:P5 · active · Head-to-head view is shareable: `?view=behind|diff` (absent = Everything); additive to the D-5 contract, which is unchanged.
+  src: REDESIGN BUILD 2026-10-02 · deps: D-3, D-5
 
 ## Known Exceptions
 
@@ -112,6 +153,18 @@ None.
   Synthesis against the pre-dispatch Level 1: **disagreement on Accessibility and Craft.** Level 1 passed A11Y-004 and scored Craft 4; Level 2 found that below 900 px the tray slots exposed no product names to assistive tech (M2), that slot names broke mid-word at 1440 with one product selected (M1; Level 1's screenshots only covered 0 and 3 selected), and that the tray covered controls on phones (M3). All three were verified in code and adopted. Typography carrier: Level 2 judged the "width axis as hierarchy" claim barely perceptible; the claim is **revised by strengthening, not retracted**: section and group headings set at 125% width, column heads at 72%, so the axis now visibly separates headings from data labels.
   Corrections applied: M1 slot names `nowrap` with an actions column that wraps its hint instead of squeezing slots; M2 slot names always in the DOM (visually hidden below 600 px), test guard added; M3 empty tray is `position: static` below 900 px, replace panel shows names in a 2-column grid, `scroll-padding-bottom` grows while it is open; m1 remove control shown from 600 px (2-column slots between 600 and 899); m2 support line set small; m3 score shown as "N / 100" in ledger cards, matrix heads and verdict; m4 winner "Best" text kept below 420 px on its own line; m5 "Jump to" section select on phone stacks. Plus own Level 1 findings: tighter masthead, hatched "limited" coverage cells, removed duplicated "Automation runs" row, fixed INTX-003 wrap, fixed a flex-shrink bug that collapsed tray marks to 1 px (found while re-verifying).
 - 2026-10-02 · gen 1 · **Level 1 re-run, formed after Level 2 (not independent of it):** Genericness 4, Hierarchy 4, Distinctiveness not assessable, Craft 4, Accessibility 4 (residual: replace panel covers the row being decided on phones while open; transient, focus is inside the panel), Technical 4.
+- 2026-10-02 · gen 2 (iteration, section-scope REDESIGN of the Head-to-head) · macrostructure, typography pairing, color-anchor, density band and motion tier unchanged from gen 1 by design: the user instructed that the existing direction be preserved (P2), so the fingerprint repetition is declared, not a redirect signal.
+- 2026-10-02 · gen 2 · **CRITIQUE Level 1 (pre-dispatch, recorded before the Level 2 brief was written)** on the working tree after commit 60e10ca:
+  1. Genericness 4/5. The view control is named by the actual winner ("Where Northlane is behind") and counted (REF-037 carried); rows where the winner is behind are flagged in text and same rows recede (REF-015 carried); verdict reasons link to their evidence groups. Structural test still passes. Finding: a segmented control is a familiar pattern; its product reason is that the winner-relative classification has three useful cuts.
+  2. Hierarchy 4/5. Verdict, then the "See where X is behind" bridge, then the view control, then the matrix. Finding: with 4 diverse picks the winner is behind someone on 19 of 50 rows, so the behind view still runs to about 7,300 px at 320 px (from about 14,300). The reduction is real but moderate, because "behind any pick" is a wide net. Finding: in the behind view the flag repeats on every row.
+  3. Distinctiveness: declared repetition of gen 1 (see entry above); no redirect.
+  4. Craft 4/5. A "Jump to" overflow at 320 px was introduced and fixed in this run. The selected view option was screenshotted mid-transition (settled colors verified).
+  5. Accessibility: A11Y-001 pass (new pairs: warn flag 6.96:1, quiet rows ink-2 7.44:1, selected option ink/paper 15.8:1); A11Y-002 pass (native radios in a fieldset with a legend, focus visible through :has(:focus-visible), the verdict button moves focus to the control, evidence links move focus to the group header); A11Y-003 pass (focus jumps honour reduced motion); A11Y-004 n/a (no new icons); A11Y-009 unchanged (the head-to-head needs JS for selection; the ledger is still prerendered); A11Y-010 pass (no overflow at any floor width, root clip neutralised); A11Y-011 pass (behind = text flag plus bar, same = text "Same for all", selected view = fill inversion plus radio state); A11Y-012 n/a.
+  6. Technical 4/5. 13 E2E (3 new), 10 unit, typecheck, build all pass; no console errors.
+- 2026-10-02 · gen 2 · **CRITIQUE Level 2** (fresh isolated `lexia-design:visual-critic`; rubric re-extracted in the brief-writing step and verified as a verbatim substring of `critique-protocol.md`; `.design/` excluded from access; no Level 1 result in the brief). Scores: Genericness 4, Hierarchy 4, Distinctiveness not assessable (section inherits page fingerprint), Craft 3, Accessibility 4, Technical 4. Structural test: passes.
+  Synthesis against the pre-dispatch Level 1: **disagreement on Craft (L1 4, L2 3)**. Level 2 found a correctness flaw that Level 1 missed, and I verified it in `rows.tsx`. Six ordinal rows (Typical setup, Seat limits, Desktop apps, Mobile apps; Storage and Support channels are genuinely unranked) had no rank, so the behind view under-reported, including the setup row the verdict itself cites. The empty-group note "X is not behind here" was therefore untrue. Other adopted findings: flags did not say whom the winner is behind; score-area rows double-counted their own evidence; the chosen view was not in the shared link; a mid-transition contrast dip on the selected view option; "Same for all" with 2 picks; evidence links landed on group tops. Agreement: the default view still costs as much as before (load moved, not dropped, for users who never switch views). This is accepted under the user's rule not to hide information by default, and mitigated by the verdict's "See where X is behind" bridge.
+  Corrections: rank added to setup time (new demo field `setupDays`), seat limits, desktop and mobile apps; flag now reads "Northlane behind Taskara" (names every pick at the top rank); score areas marked `derived`, flagged in Everything but outside the behind count and view; truthful empty note ("not behind on any ranked row here; n other differences are in Everything"); `?view=behind|diff` added to the URL (absent for Everything); view option switches without a color transition; "Same for both" for 2 picks; evidence links focus the exact row (cost, learning curve, rating, support channels) and fall back to the group. Not adopted: evidence links for the winner's own "leads on" claims (the group standing lines already state where it leads); restoring the absolute "Most complete" line when a winner exists (the standing line supersedes it; it remains when there is no winner).
+- 2026-10-02 · gen 2 · **Level 1 re-run, formed after Level 2 (not independent of it):** Genericness 4, Hierarchy 4, Distinctiveness declared repetition, Craft 4, Accessibility 4, Technical 4. Behind counts after the fix: 6 / 8 / 17 rows for the 2 / 3 / 4-pick sets tested (of 50). Head-to-head height in the behind view: 1440 with 2 picks 2,060 px (Everything 4,373); 375 with 2 picks 3,191 (8,604); 768 with 3 picks 3,701 (9,930); 320 with 4 picks 6,861 (14,348). Residual: a 4-pick behind view is still long, because "behind any pick" is a wide net.
 
 ## Accessibility Notes
 
@@ -125,7 +178,7 @@ None.
 - **C-2** check · active · At 320 CSS px: all 10 products inspectable and selectable, max-4 enforced with replace, 2–4 selected comparable with verdict visible, no page-level horizontal scroll.
   src: BUILD DESIGN 2026-10-02 · deps: T-4, T-5, T-6
 - Ledger: table ≥ 1040px; below, each product becomes a rule-separated block keeping the product name as the key line (REF-017 phone caveat).
-- Head-to-head: table with sticky product header ≥ 960px; below, attribute-first stacks (REF-022) with a sticky key strip naming slots 1–4 and the winner, and a "Jump to" section select.
+- Head-to-head: table with sticky product header ≥ 960px; below, attribute-first stacks (REF-022) with a sticky key strip naming slots 1–4 and the winner, and a "Jump to" section select. A view control (behind / all differences / everything, with counts) sits above both; on phones its options stack. Rows identical for every pick collapse to one "Same for all" line on phones.
 - Tray: sticky at the bottom of the ledger section; below 900 px it is static while empty; slot names visible from 600 px (2×2 slots 600–899), number + mark only below 600 with names kept for assistive tech.
 
 ## Retired

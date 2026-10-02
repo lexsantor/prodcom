@@ -64,15 +64,69 @@ test.describe('desktop', () => {
     await tray(page).getByRole('link', { name: /Compare 3/ }).click()
     await expect(page.locator('#compare-title')).toBeFocused()
 
-    // differences only hides identical rows
+    // the "All differences" view hides identical rows
     const rows = await page.locator('table.matrix tbody tr:not(.m-group)').count()
-    await page.getByText('Show only differences').click()
+    await page.getByRole('radio', { name: /All differences/ }).check()
     expect(await page.locator('table.matrix tbody tr:not(.m-group)').count()).toBeLessThan(rows)
 
     // clear
     await tray(page).getByRole('button', { name: 'Clear all' }).click()
     await expect(tray(page)).toContainText('0 of 4')
     expect(errors).toEqual([])
+  })
+
+  test('evidence is ranked against the winner and reachable from the verdict', async ({ page }) => {
+    await page.goto('/?compare=northlane,taskara')
+    const views = page.getByRole('group', { name: 'Show rows' })
+    await expect(views.getByRole('radio', { name: /Everything/ })).toBeChecked()
+    const matrixRows = page.locator('table.matrix tbody tr:not(.m-group)')
+    const everything = await matrixRows.count()
+
+    // the verdict leads to the rows where the winner is behind
+    await page.getByRole('button', { name: 'See where Northlane is behind' }).click()
+    await expect(views.getByRole('radio', { name: /Where Northlane is behind/ })).toBeChecked()
+    await expect(page.locator('#view-control')).toBeFocused()
+    const behind = await matrixRows.count()
+    expect(behind).toBeGreaterThan(0)
+    expect(behind).toBeLessThan(everything)
+    // every row in that view says so in text, and the option states the same count
+    await expect(page.locator('table.matrix tbody tr:not(.m-group) .row-flag')).toHaveCount(behind)
+    await expect(views.getByRole('radio', { name: /Where Northlane is behind/ })).toHaveAccessibleName(new RegExp(`${behind} rows`))
+
+    // every group still announces itself, even when empty in this view
+    await expect(page.locator('table.matrix .m-group')).toHaveCount(10)
+
+    // a trade-off reason links to its evidence group
+    await page.getByRole('link', { name: 'See the price rows' }).click()
+    await expect(page.locator('#m-price-cost')).toBeFocused()
+
+    // back to the full dataset
+    await views.getByRole('radio', { name: /Everything/ }).check()
+    await expect(matrixRows).toHaveCount(everything)
+  })
+
+  test('the behind view is complete, names who leads, and survives a shared link', async ({ page }) => {
+    await page.goto('/?compare=northlane,taskara&view=behind')
+    await expect(page.getByRole('radio', { name: /Where Northlane is behind/ })).toBeChecked()
+    // the verdict cites Taskara's quicker setup, so that row must be in the behind view, naming Taskara
+    const setup = page.locator('table.matrix tbody tr', { has: page.getByRole('rowheader', { name: /Typical setup/ }) })
+    await expect(setup.locator('.row-flag')).toHaveText('Northlane behind Taskara')
+    // score areas summarise other rows and are not double-counted here
+    await expect(page.locator('#m-score')).toContainText('Score areas summarise the rows below')
+    // an empty group never claims more than the ranking shows
+    await expect(page.locator('#m-fit')).toContainText('not behind on any ranked row')
+    // switching back to Everything drops the view from the URL
+    await page.getByRole('radio', { name: /Everything/ }).check()
+    await expect(page).not.toHaveURL(/view=/)
+    await page.getByRole('radio', { name: /All differences/ }).check()
+    await expect(page).toHaveURL(/compare=northlane,taskara.*view=diff|view=diff.*compare=northlane,taskara/)
+  })
+
+  test('no "behind" view without a winner', async ({ page }) => {
+    await page.goto('/?compare=quillo,orbitask')
+    await expect(page.getByRole('heading', { name: 'No verdict for this set yet' })).toBeVisible()
+    await expect(page.getByRole('radio', { name: /is behind/ })).toHaveCount(0)
+    await expect(page.getByRole('radio', { name: /Everything/ })).toBeChecked()
   })
 
   test('team size reprices and can exclude a product from the verdict', async ({ page }) => {
@@ -134,4 +188,11 @@ test('320px: select, hit the limit, and read the verdict', async ({ page }) => {
   await expect(pick(page, 'Mondray')).toBeFocused()
   await expect(page.locator('.stacks')).toBeVisible()
   await expect(page.locator('.stack-key li[data-best]')).toHaveCount(1)
+  // rows identical for every pick are stated once, not repeated per product
+  await expect(page.locator('.stacks .srow[data-status="same"] .srow-same').first()).toContainText('Same for all 4')
+  // the behind view works on phones and every visible row is flagged
+  await page.getByRole('radio', { name: /is behind/ }).check()
+  const stackRows = page.locator('.stacks .srow')
+  await expect(stackRows.first()).toBeVisible()
+  await expect(page.locator('.stacks .srow .row-flag')).toHaveCount(await stackRows.count())
 })

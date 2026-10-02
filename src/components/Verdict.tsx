@@ -1,4 +1,5 @@
 import { adminCoverage, coreCoverage, usd, AREAS, type Area, type Scored, type Verdict as V } from '../lib/score.ts'
+import { focusVisible } from '../lib/focus.ts'
 import { Mark } from './Mark.tsx'
 
 const CURVE = { gentle: 'gentle', moderate: 'moderate', steep: 'steep' } as const
@@ -35,10 +36,42 @@ function reason(area: Area, s: Scored, w: Scored, team: number): string {
   }
 }
 
+/** The head-to-head group that holds the evidence for each score area. */
+const EVIDENCE: Record<Area, { group: string; row?: string; label: string }> = {
+  value: { group: 'price', row: 'cost', label: 'price rows' },
+  capability: { group: 'planning', label: 'feature rows' },
+  ease: { group: 'support', row: 'curve', label: 'onboarding rows' },
+  rating: { group: 'fit', row: 'rating', label: 'rating row' },
+  admin: { group: 'admin', label: 'admin and security rows' },
+  support: { group: 'support', row: 'channels', label: 'support rows' },
+}
+
+function EvidenceLink({ area }: { area: Area }) {
+  const { group, row, label } = EVIDENCE[area]
+  const rowIds = row ? [`m-${group}-${row}`, `s-${group}-${row}`] : []
+  return (
+    <a
+      className="evidence"
+      href={`#m-${group}`}
+      onClick={(e) => { e.preventDefault(); focusVisible(...rowIds, `m-${group}`, `s-${group}`) }}
+    >
+      See the {label}
+    </a>
+  )
+}
+
 const join = (items: string[]) =>
   items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
 
-export function Verdict({ verdict, team }: { verdict: V; team: number }) {
+interface VerdictProps {
+  verdict: V
+  team: number
+  /** rows where the winner is behind another pick */
+  behindCount: number
+  onShowBehind: () => void
+}
+
+export function Verdict({ verdict, team, behindCount, onShowBehind }: VerdictProps) {
   const { winner, ranked, excluded, tieBreak, leaders } = verdict
   const excludedNote = excluded.length > 0 && (
     <p className="verdict-excluded">
@@ -98,7 +131,7 @@ export function Verdict({ verdict, team }: { verdict: V; team: number }) {
           {others.map(({ s, areas }) => (
             <li key={s.product.id}>
               <span className="tradeoff-name"><Mark product={s.product} size={18} />Choose {s.product.name} if</span>
-              <ul>{areas.map((a) => <li key={a}>{reason(a, s, winner, team)}</li>)}</ul>
+              <ul>{areas.map((a) => <li key={a}>{reason(a, s, winner, team)} <EvidenceLink area={a} /></li>)}</ul>
             </li>
           ))}
         </ul>
@@ -109,7 +142,14 @@ export function Verdict({ verdict, team }: { verdict: V; team: number }) {
         </p>
       )}
       {excludedNote}
-      <p className="verdict-method"><a href="#method">How the score works</a></p>
+      <p className="verdict-method">
+        {behindCount > 0 && (
+          <button type="button" className="btn btn-quiet" onClick={onShowBehind}>
+            See where {winner.product.name} is behind
+          </button>
+        )}
+        <a href="#method">How the score works</a>
+      </p>
     </div>
   )
 }

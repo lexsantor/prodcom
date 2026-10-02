@@ -1,9 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { MAX_SELECTED } from '../lib/selection.ts'
 import { compareScored, nearestBy, usd, verdictFor, type Scored } from '../lib/score.ts'
+import { focusVisible } from '../lib/focus.ts'
 import { Mark } from './Mark.tsx'
 import { Verdict } from './Verdict.tsx'
-import { bestIn, buildGroups, groupLeader, isIdentical, type Group } from './rows.tsx'
+import { aheadOfWinner, bestIn, buildGroups, groupStanding, statusOf, type Group, type Row, type RowStatus } from './rows.tsx'
 
 interface Props {
   scores: Map<string, Scored>
@@ -15,15 +16,42 @@ interface Props {
 }
 
 export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }: Props) {
-  const [diffOnly, setDiffOnly] = useState(false)
+  const [chosenView, setView] = useState<View>('all')
+  // the chosen view is part of a shared link (?view=behind|diff); applied after hydration
+  useEffect(() => {
+    const v = new URLSearchParams(window.location.search).get('view')
+    if (v === 'behind' || v === 'diff') setView(v)
+  }, [])
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search)
+    if (chosenView === 'all') q.delete('view')
+    else q.set('view', chosenView)
+    const query = q.toString().replace(/%2C/g, ',')
+    window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
+  }, [chosenView])
   const [copied, setCopied] = useState(false)
   const picked = ids.map((id) => scores.get(id)).filter((s): s is Scored => !!s)
   const verdict = useMemo(() => verdictFor(ids, scores), [ids, scores])
   const groups = useMemo(() => buildGroups(team), [team])
-  const winnerId = verdict.winner?.product.id
+  const winner = verdict.winner ?? undefined
+  const winnerId = winner?.product.id
+  // "behind" only exists while there is a winner
+  const view: View = chosenView === 'behind' && !winner ? 'all' : chosenView
 
-  const visible = groups.map((g) => ({ g, rows: diffOnly ? g.rows.filter((r) => !isIdentical(r, picked)) : g.rows }))
-  const hiddenCount = groups.reduce((n, g) => n + g.rows.filter((r) => isIdentical(r, picked)).length, 0)
+  const classified = groups.map((g) => ({ g, rows: g.rows.map((row) => ({ row, status: statusOf(row, picked, winnerId) })) }))
+  const all = classified.flatMap((c) => c.rows)
+  const counts: Record<View, number> = {
+    behind: all.filter((r) => inView(r.status, 'behind', r.row)).length,
+    diff: all.filter((r) => r.status !== 'same').length,
+    all: all.length,
+  }
+  const visible = classified.map((c) => ({ g: c.g, rows: c.rows.filter((r) => inView(r.status, view, r.row)) }))
+
+  function showBehind() {
+    setView('behind')
+    onAnnounce(`Showing the ${counts.behind} rows where ${winner?.product.name} is behind.`)
+    focusVisible('view-control')
+  }
 
   async function copyLink() {
     try {
@@ -49,24 +77,28 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
 
         {picked.length >= 2 && (
           <>
-            <Verdict verdict={verdict} team={team} />
+            <Verdict verdict={verdict} team={team} behindCount={counts.behind} onShowBehind={showBehind} />
 
             <div className="h2h-tools">
-              <label className="switch">
-                <input type="checkbox" checked={diffOnly} onChange={(e) => setDiffOnly(e.target.checked)} />
-                <span className="switch-track" aria-hidden="true" />
-                <span>
-                  Show only differences
-                  <span className="muted small"> ({hiddenCount} {hiddenCount === 1 ? 'row is' : 'rows are'} the same for all)</span>
-                </span>
-              </label>
+              <fieldset className="views" id="view-control" tabIndex={-1}>
+                <legend>Show rows</legend>
+                <div className="views-options">
+                  {VIEWS.filter((v) => v !== 'behind' || winner).map((v) => (
+                    <label key={v} className="view-opt">
+                      <input type="radio" name="h2h-view" value={v} checked={view === v} onChange={() => setView(v)} />
+                      <span className="view-name">{v === 'behind' ? `Where ${winner?.product.name} is behind` : VIEW_LABEL[v]}</span>
+                      <span className="view-count">{counts[v]}<span className="sr-only"> rows</span></span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
               <button type="button" className="btn btn-quiet" onClick={copyLink}>
                 {copied ? 'Link copied' : 'Copy link to this comparison'}
               </button>
             </div>
 
-            <MatrixTable picked={picked} groups={visible} winnerId={winnerId} team={team} onRemove={onRemove} />
-            <Stacks picked={picked} groups={visible} winnerId={winnerId} />
+            <MatrixTable picked={picked} groups={visible} winner={winner} view={view} team={team} onRemove={onRemove} />
+            <Stacks picked={picked} groups={visible} winner={winner} view={view} />
           </>
         )}
       </div>
@@ -74,13 +106,37 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
   )
 }
 
-type Visible = { g: Group; rows: Group['rows'] }[]
+type View = 'behind' | 'diff' | 'all'
+const VIEWS: View[] = ['behind', 'diff', 'all']
+const VIEW_LABEL: Record<View, string> = { behind: 'Where the winner is behind', diff: 'All differences', all: 'Everything' }
+/** Score areas summarise other rows, so the "behind" view leaves them out instead of counting the same point twice. */
+const inView = (status: RowStatus, view: View, row: Row) =>
+  view === 'all' || (view === 'diff' ? status !== 'same' : status === 'behind' && !row.derived)
 
-function MatrixTable({ picked, groups, winnerId, team, onRemove }: {
-  picked: Scored[]; groups: Visible; winnerId?: string; team: number; onRemove: Props['onRemove']
+type Visible = { g: Group; rows: { row: Row; status: RowStatus }[] }[]
+
+/** Message for a group that has no rows in the current view; it never claims more than the ranking can show. */
+function emptyNote(view: View, g: Group, picked: Scored[], winner?: Scored) {
+  if (view !== 'behind') return 'Same for all your picks here'
+  if (g.key === 'score') return 'Score areas summarise the rows below; see Everything for them'
+  const unranked = g.rows.filter((r) => statusOf(r, picked, winner?.product.id) === 'differs').length
+  const base = `${winner?.product.name} is not behind on any ranked row here`
+  return unranked ? `${base}; ${unranked} other ${unranked === 1 ? 'difference is' : 'differences are'} in Everything` : base
+}
+
+const names = (list: Scored[]) =>
+  list.length <= 1 ? list.map((s) => s.product.name).join('') : `${list.slice(0, -1).map((s) => s.product.name).join(', ')} and ${list.at(-1)!.product.name}`
+
+/** "Northlane behind Orbitask": says who beats the winner on this row. */
+function BehindFlag({ winner, row, picked }: { winner: Scored; row: Row; picked: Scored[] }) {
+  return <span className="row-flag">{winner.product.name} behind {names(aheadOfWinner(row, picked, winner))}</span>
+}
+
+function MatrixTable({ picked, groups, winner, view, team, onRemove }: {
+  picked: Scored[]; groups: Visible; winner?: Scored; view: View; team: number; onRemove: Props['onRemove']
 }) {
   const names = picked.map((s) => s.product.name).join(', ')
-  const winner = picked.find((s) => s.product.id === winnerId)
+  const winnerId = winner?.product.id
   return (
     <table className="matrix" data-count={picked.length}>
       <caption className="sr-only">
@@ -111,28 +167,30 @@ function MatrixTable({ picked, groups, winnerId, team, onRemove }: {
         </tr>
       </thead>
       {groups.map(({ g, rows }) => {
-        const leader = groupLeader(g, picked)
+        const standing = groupStanding(g, picked, winner)
         return (
           <tbody key={g.key}>
             <tr className="m-group">
-              <th scope="rowgroup" colSpan={picked.length + 1}>
+              <th scope="rowgroup" colSpan={picked.length + 1} id={`m-${g.key}`} tabIndex={-1}>
                 <span className="m-group-title">{g.title}</span>
-                {leader && <span className="m-group-leader">{leader}</span>}
-                {rows.length === 0 && <span className="m-group-leader">All rows the same for your picks</span>}
+                {standing && <span className="m-group-leader">{standing}</span>}
+                {rows.length === 0 && <span className="m-group-empty">{emptyNote(view, g, picked, winner)}</span>}
               </th>
             </tr>
-            {rows.map((r) => {
+            {rows.map(({ row: r, status }) => {
               const best = bestIn(r, picked)
               return (
-                <tr key={r.key}>
-                  <th scope="row" className="m-label">
+                <tr key={r.key} data-status={status}>
+                  <th scope="row" className="m-label" id={`m-${g.key}-${r.key}`} tabIndex={-1}>
                     {r.label}
                     {r.hint && <span className="m-hint">{r.hint}</span>}
+                    {status === 'behind' && winner && <BehindFlag winner={winner} row={r} picked={picked} />}
+                    {status === 'same' && <span className="m-hint">{picked.length === 2 ? 'Same for both' : 'Same for all'}</span>}
                   </th>
                   {picked.map((s) => (
                     <td key={s.product.id} data-best={s.product.id === winnerId || undefined}>
                       <span className="val">{r.render(s)}</span>
-                      {best.has(s.product.id) && <span className="row-best">{r.best!.tag}</span>}
+                      {best.has(s.product.id) && <span className="row-best">{r.tag}</span>}
                     </td>
                   ))}
                 </tr>
@@ -146,7 +204,8 @@ function MatrixTable({ picked, groups, winnerId, team, onRemove }: {
 }
 
 /** Narrow screens: attribute-first stacks keep every pick's value for one attribute together. */
-function Stacks({ picked, groups, winnerId }: { picked: Scored[]; groups: Visible; winnerId?: string }) {
+function Stacks({ picked, groups, winner, view }: { picked: Scored[]; groups: Visible; winner?: Scored; view: View }) {
+  const winnerId = winner?.product.id
   return (
     <div className="stacks">
       <label className="jump">
@@ -175,18 +234,27 @@ function Stacks({ picked, groups, winnerId }: { picked: Scored[]; groups: Visibl
         ))}
       </ol>
       {groups.map(({ g, rows }) => {
-        const leader = groupLeader(g, picked)
+        const standing = groupStanding(g, picked, winner)
         return (
           <section key={g.key} className="sgroup" aria-labelledby={`s-${g.key}`}>
             <h3 id={`s-${g.key}`} tabIndex={-1}>{g.title}</h3>
-            {leader && <p className="m-group-leader">{leader}</p>}
-            {rows.length === 0 && <p className="m-group-leader">All rows the same for your picks</p>}
-            {rows.map((r) => {
+            {standing && <p className="m-group-leader">{standing}</p>}
+            {rows.length === 0 && <p className="m-group-empty">{emptyNote(view, g, picked, winner)}</p>}
+            {rows.map(({ row: r, status }) => {
               const best = bestIn(r, picked)
               const id = `s-${g.key}-${r.key}`
+              if (status === 'same') {
+                // identical for every pick: say it once instead of repeating it per product
+                return (
+                  <div key={r.key} className="srow" data-status="same">
+                    <h4 id={id} tabIndex={-1}>{r.label}{r.hint && <span className="m-hint"> {r.hint}</span>}</h4>
+                    <p className="srow-same"><span className="srow-name">{picked.length === 2 ? 'Same for both' : `Same for all ${picked.length}`}:</span> <span className="val">{r.render(picked[0])}</span></p>
+                  </div>
+                )
+              }
               return (
-                <div key={r.key} className="srow">
-                  <h4 id={id}>{r.label}{r.hint && <span className="m-hint"> {r.hint}</span>}</h4>
+                <div key={r.key} className="srow" data-status={status}>
+                  <h4 id={id} tabIndex={-1}>{r.label}{r.hint && <span className="m-hint"> {r.hint}</span>}{status === 'behind' && winner && <BehindFlag winner={winner} row={r} picked={picked} />}</h4>
                   <ul aria-labelledby={id}>
                     {picked.map((s, i) => (
                       <li key={s.product.id} data-best={s.product.id === winnerId || undefined}>
@@ -194,7 +262,7 @@ function Stacks({ picked, groups, winnerId }: { picked: Scored[]; groups: Visibl
                         <span className="srow-name">{s.product.name}<span className="sr-only">:</span></span>
                         <span className="srow-val">
                           <span className="val">{r.render(s)}</span>
-                          {best.has(s.product.id) && <span className="row-best">{r.best!.tag}</span>}
+                          {best.has(s.product.id) && <span className="row-best">{r.tag}</span>}
                         </span>
                       </li>
                     ))}

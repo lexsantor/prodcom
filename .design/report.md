@@ -58,3 +58,53 @@ The winner changes with the selection (for example, Northlane beats Mondray, whi
 - **Fonts.** Archivo loads from Google Fonts and blocks rendering; the system-font fallback is acceptable if it fails.
 - **Browser coverage.** Only Chromium was tested; Firefox and Safari were not. Sticky `thead th` and `:has()` are supported in current versions of both.
 - **Score model.** The weights are a design decision applied to demo data. The verdict copy and the Method section say so, but the "best overall" is only as meaningful as the invented data.
+
+---
+
+# Iteration 2 (2026-10-02): decision efficiency in the Head-to-head
+
+Classification: section-scope REDESIGN of the Head-to-head on an existing project. Starting HEAD `60e10ca` on `main`. Direction, diagnosis, references and rejected alternatives are in `context.md` > Visual System > Iteration 2; critique history is in Fingerprint History.
+
+## Diagnosis
+
+- At 320 px with 4 picks the Head-to-head was about 14,300 px for 50 rows, and only 7 of those rows were identical. "Show only differences" barely helped a diverse selection.
+- The cost was **unweighted evidence**: a verdict, then 50 rows of equal weight, with no way to see where the winner loses and no link from a claim to its proof.
+- The page length was a symptom of that.
+- The desktop masthead was judged not harmful and left unchanged.
+
+## Response: evidence ranked against the winner
+
+1. **Classification.** Every attribute row is classified deterministically against the winner using an ordinal rank: winner behind, winner ahead, other difference, or same.
+2. **View control.** It shows "Where <winner> is behind", "All differences" and "Everything", with row counts. It is shareable (`?view=`), and the default stays "Everything".
+3. **Row flags.** Each flag names the pick that beats the winner ("Northlane behind Taskara"). Rows that are the same for everyone recede, and on phones they collapse to one line.
+4. **Group standing.** Each group header states the winner's standing. Groups with nothing in the current view say truthfully why.
+5. **Verdict links.** Each trade-off reason links to the row that proves it. "See where <winner> is behind" opens that view.
+
+## Before and after (Head-to-head height)
+
+| Case | Before (Everything) | After, Everything | After, behind view | Behind rows |
+|---|---|---|---|---|
+| 1440×900, 2 picks | 3,981 px | 4,373 px | 2,060 px | 6 of 50 |
+| 375, 2 picks | (not measured) | 8,604 px | 3,191 px | 6 of 50 |
+| 768, 3 picks | (not measured) | 9,930 px | 3,701 px | 8 of 50 |
+| 320, 4 picks | 14,303 px | 14,348 px | 6,861 px | 17 of 50 |
+
+Depth is unchanged: all 50 rows remain in "Everything", which is the default. Nothing was removed.
+
+## Validation
+
+- Typecheck and build plus prerender: pass.
+- Unit tests: 10/10 pass.
+- E2E: 14/14 pass. This adds 4 new tests for the views, evidence links, shared view, truthful empty groups and the phone same-row collapse; one existing test was updated for the new control.
+- Reflow at 320, 600, 640, 900, 960 and 1040 px: 0 elements overflow, with the root clip neutralised.
+- New controls: no clickable-text wrapping.
+- Contrast of new pairs: flag 6.96:1, quiet rows 7.44:1, selected option 15.8:1.
+- No console errors.
+- Screenshots: `screenshots/iteration-2/`.
+
+## Remaining risks
+
+- With 4 diverse picks the behind view is still about 6,900 px on a phone, because "behind any pick" is a wide net. It shrinks the work by about half, not to a summary.
+- The default "Everything" view costs what it did before. The faster path is one click away, through the verdict button or the view control.
+- Storage and Support channels stay unranked: their values are not comparable on one scale.
+- The new demo field `setupDays` is a judgement mapping of the written setup times.
