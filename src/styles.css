@@ -338,8 +338,9 @@ th[aria-sort] .sort { color: var(--ink); }
 
 /* Related categories */
 .related { padding-block: 56px 24px; border-top: 2px solid var(--ink); }
-/* Explanatory sections read at a medium measure; ledger and matrix keep the full width. */
-.related > .wrap > *, .emailme > .wrap > *, .method > .wrap > * { max-width: 1040px; }
+/* The method reads at a medium measure; ledger, matrix, related categories and the email form use the full width
+   (their prose keeps its own ch measure). */
+.method > .wrap > * { max-width: 1040px; }
 .related-list { display: grid; column-gap: 32px; margin-top: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
 .related-list li { border-top: 1px solid var(--rule); }
 .related-list a { display: grid; gap: 2px; padding: 12px 0; min-height: 44px; color: var(--ink); text-decoration: none; }
