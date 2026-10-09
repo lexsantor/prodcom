@@ -4,6 +4,9 @@ import { FOUR, settled } from './helpers.ts'
 // Layout contracts measured in the browser at the breakpoints they depend on (Phase B).
 // Also runs against a deployed site via PLAYWRIGHT_BASE_URL, where host overlays (Netlify's badge) exist.
 
+// Each test sweeps many widths (up to 48 page loads); against a deployed site that exceeds the 30s default.
+test.describe.configure({ timeout: 120_000 })
+
 const HEIGHT: Record<number, number> = {
   320: 640, 375: 812, 390: 844, 600: 960, 720: 1024, 768: 1024, 834: 1194, 900: 800,
   960: 800, 1039: 800, 1040: 800, 1100: 800, 1179: 800, 1180: 800, 1280: 800, 1440: 900,
