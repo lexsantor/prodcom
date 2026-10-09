@@ -147,6 +147,12 @@ Verified against the running build at 1440/1280/768/375, DPR 1 (before/after sho
 Changes: D-10 (above); price total at --t-xl/750; "/ 100" after the ledger score; a reading key under the ledger head (score scale + coverage swatches); AI count moved from the product cell to the core-features cell in the wide table (cards unchanged); selected rows and cards on --pick-wash (97.2% L) keeping the 4 px bar, checked box and slot number; column widths rebalanced (score 7.5%, Stands out 18%, Visit 7.5%). Row heights 1224 → 1155 px total, tallest 152 → 127.
 Deferred: phone tray slots show number and mark only (a name fits only with a 2-row tray, +46 px over content); badges at 0.75rem.
 
+### Iteration 5 (2026-10-09): Phase B responsive refinement (section POLISH)
+
+Evaluated as injected CSS variants at 16 widths (320-1440), then implemented the approved ones; evidence in the session scratchpad (phaseb/). Confirmed defects fixed: tray names ran under their remove buttons at 900-1100 px (one-row tray too narrow); --tray-h (88 px at >=768) under-sized the 156 px tablet tray, so focused cards were partly (720/768) or fully (834) hidden behind it (WCAG 2.4.11).
+Changes: tablet cards 768-1039 put identity beside three fact columns with actions underneath (list 3201 -> 2437 px at 768, 2383 at 960; one column, DOM order); tray is one row only from 1180 px, slots take their own 4-wide row from 720 px (2x2 at 600-719); empty tray static up to 1179 px (also keeps restored picks from shifting it). Behaviour change: at 900-1179 px, including narrow desktop 1040-1179, an empty tray is no longer pinned to the viewport; it waits at the end of the list as on phones and tablets, and pins again from the first pick; compact phone tray (96 px); --tray-h set per layout to the tallest rendered tray; mobile masthead and ledger head spacing tightened below 768 px (first product 908 -> 854 at 375). Desktop >= 1180 px unchanged.
+Rejected after measurement: two-column tablet cards (cards 490 px tall at 768, coverage bar overflowing at 900-960); one-row phone tray (marks hidden under Compare); progressive tray (hides the picks, needs new state); team size and sort on one row (sort label clipped); dropping the three steps (content loss); H2 one step down on phones (H1 already dominates).
+
 ## Constraints & Preserved Patterns
 
 - Stack (declared this run): Vite 8 + React 19 + TypeScript 7, plain CSS, Playwright for E2E, `node --test` for logic, static prerender (renderToString at build) so all content exists without JavaScript (A11Y-009). No backend; dataset local in `src/data/products.ts`.
@@ -170,7 +176,7 @@ Deferred: phone tray slots show number and mark only (a name fits only with a 2-
 
 ## Known Exceptions
 
-None.
+- **Pending (found 2026-10-09, Phase B, not fixed by decision):** in the ledger table at 1040-1100 px the score cell wraps its scale onto a second line ("70 /" then "100"). Pre-existing since the V3 column rebalance; Phase B leaves the table untouched. Candidate fix for a later phase: keep "/ 100" with the score (no-wrap) or widen the score column at that range, then re-check row heights.
 
 ## Rejected Directions
 
@@ -232,9 +238,9 @@ None.
 
 - **C-2** check · active · At 320 CSS px: all 10 products inspectable and selectable, max-4 enforced with replace, 2–4 selected comparable with verdict visible, no page-level horizontal scroll.
   src: BUILD DESIGN 2026-10-02 · deps: T-4, T-5, T-6
-- Ledger: table ≥ 1040px; below, each product becomes a rule-separated block keeping the product name as the key line (REF-017 phone caveat).
+- Ledger: table ≥ 1040px; below, each product becomes a rule-separated block keeping the product name as the key line (REF-017 phone caveat); at 768–1039 the block puts identity beside three fact columns, actions underneath.
 - Head-to-head: table with sticky product header ≥ 960px; below, attribute-first stacks (REF-022) with a sticky key strip naming slots 1–4 and the winner, and a "Jump to" section select. A view control (behind / all differences / everything, with counts) sits above both; on phones its options stack. Rows identical for every pick collapse to one "Same for all" line on phones.
-- Tray: sticky at the bottom of the ledger section; below 900 px it is static while empty; slot names visible from 600 px (2×2 slots 600–899), number + mark only below 600 with names kept for assistive tech.
+- Tray: sticky at the bottom of the ledger section, 60 px above the viewport bottom (host badge); below 1180 px it is static while empty; one row from 1180 px, slots on their own row below (4 across 720–1179, 2×2 600–719); slot names visible from 600 px, number + mark only below 600 with names kept for assistive tech. --tray-h tracks the tallest rendered tray per layout.
 
 ## Retired
 
