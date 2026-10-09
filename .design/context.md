@@ -153,6 +153,10 @@ Evaluated as injected CSS variants at 16 widths (320-1440), then implemented the
 Changes: tablet cards 768-1039 put identity beside three fact columns with actions underneath (list 3201 -> 2437 px at 768, 2383 at 960; one column, DOM order); tray is one row only from 1180 px, slots take their own 4-wide row from 720 px (2x2 at 600-719); empty tray static up to 1179 px (also keeps restored picks from shifting it). Behaviour change: at 900-1179 px, including narrow desktop 1040-1179, an empty tray is no longer pinned to the viewport; it waits at the end of the list as on phones and tablets, and pins again from the first pick; compact phone tray (96 px); --tray-h set per layout to the tallest rendered tray; mobile masthead and ledger head spacing tightened below 768 px (first product 908 -> 854 at 375). Desktop >= 1180 px unchanged.
 Rejected after measurement: two-column tablet cards (cards 490 px tall at 768, coverage bar overflowing at 900-960); one-row phone tray (marks hidden under Compare); progressive tray (hides the picks, needs new state); team size and sort on one row (sort label clipped); dropping the three steps (content loss); H2 one step down on phones (H1 already dominates).
 
+### Iteration 6 (2026-10-10): Phase C0 + C1 (decision integrity and measurement)
+
+Source: docs/cro/phase-c-audit.md and phase-c-spec.md (G1 approved). Verified defects fixed: the table ordered equal scores against the published tie rule (Taskara above Orbitask at 10, above Fernwork at 100); an unservable product showed an artefact score (Quillo 38) with a solid Visit; the phone head-to-head offered Visit for the winner only; six related-category links returned 404 (now plain text, "Coming soon"); `comparison_started` never fired on most phones and tablets and fired twice on desktop (tracking v2). Verdict kicker counts only picks that can serve the team. No change to weights, prices, products, URLs or existing UTMs. Not changed (pre-existing, out of scope): the table Visit button runs past its cell by up to 15 px at 1040-1180 px, identical before and after this iteration.
+
 ## Constraints & Preserved Patterns
 
 - Stack (declared this run): Vite 8 + React 19 + TypeScript 7, plain CSS, Playwright for E2E, `node --test` for logic, static prerender (renderToString at build) so all content exists without JavaScript (A11Y-009). No backend; dataset local in `src/data/products.ts`.
@@ -163,9 +167,15 @@ Rejected after measurement: two-column tablet cards (cards 490 px tall at 768, c
 
 - **D-7** decision:P5 · active · Head-to-head views are key (default), essential and all; shareable as `?view=essential|all` (absent = key); links with the retired `?view=behind|diff` open on key. Additive to D-5, which is unchanged.
   src: REDESIGN DESIGN 2026-10-09 · deps: D-3, D-5, U-5
-- **D-8** decision:P4 · active · Commercial contract: every Visit link is `https://<id>.example/?utm_source=prodcom&utm_medium=compare&utm_content=<placement>` with placements `ledger`, `ledger-card`, `verdict`, `matrix`, `target=_blank`, `rel="sponsored noopener"` and `data-visit=<id>`; the email form fields are `email` and `alerts`.
+- **D-8** decision:P4 · active · Commercial contract: every Visit link is `https://<id>.example/?utm_source=prodcom&utm_medium=compare&utm_content=<placement>` with placements `ledger`, `ledger-card`, `verdict`, `matrix`, `stack` (added 2026-10-10, Phase C1-B), `target=_blank`, `rel="sponsored noopener"` and `data-visit=<id>`; the email form fields are `email` and `alerts`.
   src: inspect:src/components/Visit.tsx, 2026-10-09 · deps: U-3
-- **D-9** decision:P5 · active · Ledger row action hierarchy: checkbox (select) → Visit (solid ink, primary commercial exit) → Details (text control under the product, secondary); badges for free version, free trial and AI feature count; a "Stands out / Watch out" column from the first listed strength and limitation.
+- **D-9** decision:P5 · active · Ledger row action hierarchy: checkbox (select) → Visit (solid ink, primary commercial exit) → Details (text control under the product, secondary); badges for free version, free trial and AI feature count; a "Stands out / Watch out" column from the first listed strength and limitation. Amended 2026-10-10 (D-11): a product that cannot serve the team has a quiet Visit whose accessible name states why.
+- **D-13** decision:P5 · active · One recommendation order everywhere: `compareScored` = can serve the team first, then score (only between products that can), rating, lower price, name (`'en'`). The table's Score sort is this order; factual sorts keep their own key and fall back to it.
+  src: Phase C1-A, 2026-10-10 (docs/cro/phase-c-spec.md §1.1)
+- **D-11** decision:P5 · active · Eligibility: a product over its seat cap shows "Not scored" (reason for screen readers) in the table, cards, matrix header and score rows; sorts last under Score; stays selectable and is never removed from a comparison; can never win; its Visit is quiet. Eligibility flips caused by a team-size change are announced.
+  src: Phase C1-A, 2026-10-10
+- **D-12** decision:P5 · active · Phone and tablet head-to-head (< 960 px): one non-sticky list above the stacks with a Visit per pick (winner solid with the Best label, others quiet, "Can't serve N" where it applies), placement `stack`. The sticky stack key carries no CTA.
+  src: Phase C1-B, 2026-10-10
   src: REDESIGN DESIGN 2026-10-09 · deps: U-4, T-3
 - **U-3** directive · active · Preserve commercial tracking, attribution and monetization behaviour; never claim conversion improvements without measured evidence.
   src: user, 2026-10-09

@@ -271,6 +271,8 @@ th[aria-sort] .sort { color: var(--ink); }
 /* "74 / 100" needs ~59px; below 1180px 7.5% leaves 49-57px inside 12px padding, so the scale wrapped under the
    number. Halving the side padding there keeps every other column's width; nowrap keeps number and scale together. */
 .ledger-table td.col-num { white-space: nowrap; }
+/* "Not scored" replaces the number for a product that cannot serve the team; unlike the score it may wrap. */
+.not-scored { display: inline-block; white-space: normal; font-size: var(--t-sm); font-weight: 650; line-height: 1.25; color: var(--ink-2); }
 @media (max-width: 1179px) { .ledger-table .col-num { padding-inline: 6px; } }
 .ledger-table .col-price { width: 13%; }
 .ledger-table .col-rating { width: 10.5%; }
@@ -343,11 +345,11 @@ th[aria-sort] .sort { color: var(--ink); }
 .method > .wrap > * { max-width: 1040px; }
 .related-list { display: grid; column-gap: 32px; margin-top: 16px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 280px), 1fr)); }
 .related-list li { border-top: 1px solid var(--rule); }
-.related-list a { display: grid; gap: 2px; padding: 12px 0; min-height: 44px; color: var(--ink); text-decoration: none; }
+.related-item { display: grid; gap: 2px; padding: 12px 0; }
 .related-name { font-weight: 700; }
-.related-name::after { content: ' →'; color: var(--ink-2); }
 .related-note { font-size: var(--t-sm); color: var(--ink-2); }
-@media (hover: hover) and (pointer: fine) { .related-list a:hover .related-name { text-decoration: underline; } }
+/* plain text until the category pages exist: nothing here looks or behaves like a link */
+.related-soon { font-size: var(--t-xs); font-weight: 650; color: var(--ink-2); }
 
 /* Email the list */
 .emailme { padding-block: 32px 64px; }
@@ -483,8 +485,8 @@ th[aria-sort] .sort { color: var(--ink); }
 .tray-actions { flex-wrap: nowrap; }
 .tray-actions .btn-link { min-height: 32px; font-size: var(--t-xs); }
 .tray-count-word { display: none; }
-.stack-key .mark { display: none; }
-@media (min-width: 420px) { .tray-count-word { display: inline; } .stack-key .mark { display: block; } }
+.stack-key .mark, .stack-actions .mark { display: none; }
+@media (min-width: 420px) { .tray-count-word { display: inline; } .stack-key .mark, .stack-actions .mark { display: block; } }
 .tray-hint { font-size: var(--t-sm); color: var(--ink-2); }
 .tray[data-count='0'] .tray-main { grid-template-columns: auto 1fr; }
 .tray[data-count='0'] .tray-actions { justify-content: flex-start; }
@@ -621,6 +623,14 @@ td .row-best { display: table; }
 .scorebar .num { width: 2.2em; font-weight: 650; }
 .scorebar-track { flex: 1; max-width: 120px; height: 6px; background: var(--rule); border-radius: 3px; overflow: hidden; }
 .scorebar-fill { display: block; height: 100%; background: var(--ink-2); }
+
+/* Narrow: one Visit per pick above the stacks (not sticky) */
+.stack-actions { display: grid; gap: 4px 12px; margin-bottom: 16px; }
+.stack-actions li { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px; border-top: 1px solid var(--rule); }
+.stack-actions li[data-best] { background: var(--best); box-shadow: inset 3px 0 0 var(--best-ink); }
+.stack-actions-name { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 2px 8px; font-weight: 700; font-size: var(--t-sm); overflow-wrap: break-word; }
+.stack-actions .visit { flex: none; min-height: 44px; }
+@media (min-width: 600px) { .stack-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
 /* Narrow: attribute-first stacks */
 .stack-key {

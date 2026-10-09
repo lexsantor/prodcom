@@ -126,12 +126,24 @@ export function scoreCatalog(team: number): Map<string, Scored> {
 
 export type TieBreak = 'rating' | 'price' | 'name'
 
-/** Ranking order: score, then rating, then lower price, then name. */
+/**
+ * The recommendation order, used by every surface that ranks: products that can serve the team first,
+ * then score (only between products that can serve the team; the others are not scored), then rating,
+ * then lower price, then name. Names are unique, so the order is total.
+ */
 export function compareScored(a: Scored, b: Scored): number {
-  return b.overall - a.overall
+  const bothEligible = a.cost.eligible && b.cost.eligible
+  return Number(b.cost.eligible) - Number(a.cost.eligible)
+    || (bothEligible ? b.overall - a.overall : 0)
     || b.product.rating - a.product.rating
     || a.cost.total - b.cost.total
-    || a.product.name.localeCompare(b.product.name)
+    || a.product.name.localeCompare(b.product.name, 'en')
+}
+
+/** 1-based position of each product that can serve the team in the recommendation order; absent = not ranked. */
+export function rankPositions(scores: Map<string, Scored>): Map<string, number> {
+  const ranked = [...scores.values()].filter((s) => s.cost.eligible).sort(compareScored)
+  return new Map(ranked.map((s, i) => [s.product.id, i + 1]))
 }
 
 export interface Verdict {
@@ -167,6 +179,14 @@ export function verdictFor(ids: readonly string[], scores: Map<string, Scored>):
   })) as Record<Area, Scored[]>
 
   return { ranked, excluded, winner, tieBreak, leaders }
+}
+
+/** The best `count` products that can serve the team, leaving out `exclude`. */
+export function topEligible(scores: Map<string, Scored>, count: number, exclude: readonly string[] = []): Scored[] {
+  return [...scores.values()]
+    .filter((s) => s.cost.eligible && !exclude.includes(s.product.id))
+    .sort(compareScored)
+    .slice(0, count)
 }
 
 /** Products nearest in score to `id`, for the one-selected state. */

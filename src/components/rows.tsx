@@ -99,8 +99,8 @@ export function buildGroups(team: number): Group[] {
           key: 'overall',
           label: 'Overall',
           hint: 'out of 100',
-          render: (s) => <strong className="num big">{s.overall}</strong>,
-          text: (s) => String(s.overall),
+          render: (s) => s.cost.eligible ? <strong className="num big">{s.overall}</strong> : <NotScoredCell />,
+          text: (s) => (s.cost.eligible ? String(s.overall) : 'n/a'),
           rank: (s) => s.overall,
           tag: 'Highest',
         },
@@ -108,8 +108,8 @@ export function buildGroups(team: number): Group[] {
           key: `area-${a}`,
           label: AREA_LABEL[a],
           hint: `${WEIGHTS[a]}% of the score`,
-          render: (s) => <ScoreBar value={s.areas[a]} />,
-          text: (s) => String(Math.round(s.areas[a])),
+          render: (s) => s.cost.eligible ? <ScoreBar value={s.areas[a]} /> : <NotScoredCell />,
+          text: (s) => (s.cost.eligible ? String(Math.round(s.areas[a])) : 'n/a'),
           rank: (s) => Math.round(s.areas[a]),
           tag: 'Leads',
           derived: true,
@@ -198,6 +198,11 @@ export function buildGroups(team: number): Group[] {
       ],
     },
   ]
+}
+
+/** Score rows for a pick that cannot serve the team: its areas are parts of a score it does not get. */
+function NotScoredCell() {
+  return <span className="muted">Not scored</span>
 }
 
 function ScoreBar({ value }: { value: number }) {

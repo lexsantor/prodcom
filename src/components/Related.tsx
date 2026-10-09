@@ -1,4 +1,4 @@
-/** Neighbouring comparisons. Demo: these category pages are not built yet. */
+/** Neighbouring comparisons. Demo: these category pages are not built yet, so they are plain text, not links. */
 const CATEGORIES = [
   { slug: 'time-tracking', name: 'Time tracking', note: 'Billable hours, timesheets, invoicing' },
   { slug: 'resource-management', name: 'Resource management', note: 'Capacity, workload, staffing' },
@@ -13,14 +13,13 @@ export function Related() {
     <section className="related" aria-labelledby="related-title">
       <div className="wrap">
         <h2 id="related-title">Related categories</h2>
-        <p className="section-sub">Not quite the right kind of tool? Compare the neighbours.</p>
+        <p className="section-sub">Neighbouring categories we plan to compare. Not available yet.</p>
         <ul className="related-list">
           {CATEGORIES.map((c) => (
-            <li key={c.slug}>
-              <a href={`/compare/${c.slug}/`}>
-                <span className="related-name">{c.name}</span>
-                <span className="related-note">{c.note}</span>
-              </a>
+            <li key={c.slug} className="related-item">
+              <span className="related-name">{c.name}</span>
+              <span className="related-note">{c.note}</span>
+              <span className="related-soon">Coming soon</span>
             </li>
           ))}
         </ul>

@@ -15,20 +15,26 @@ interface VisitProps {
   variant?: 'solid' | 'quiet'
   /** visible text; defaults to "Visit" with the product name for screen readers */
   label?: string
+  /** context added to the accessible name, e.g. why the product cannot serve the team */
+  note?: string
+  /** 1-based row position in the table as displayed; table placements only */
+  displayPosition?: number
 }
 
-export function Visit({ product, placement, variant = 'solid', label }: VisitProps) {
+export function Visit({ product, placement, variant = 'solid', label, note, displayPosition }: VisitProps) {
   const href = visitUrl(product, placement)
+  const display_position = displayPosition ?? null
   return (
     <a
       className={`visit visit-${variant}`}
       href={href}
-      onClick={() => track({ event: 'product_cta_clicked', product_id: product.id, placement, destination_host: hostOf(href) })}
+      onClick={() => track({ event: 'product_cta_clicked', product_id: product.id, placement, destination_host: hostOf(href), display_position })}
       target="_blank"
       rel="sponsored noopener"
       data-visit={product.id}
     >
-      {label ?? <>Visit<span className="sr-only"> {product.name}</span></>}
+      {label ?? <>Visit<span className="sr-only"> {product.name}{note && `, ${note}`}</span></>}
+      {label && note && <span className="sr-only">, {note}</span>}
       <ExternalIcon />
       <span className="sr-only"> (opens in a new tab)</span>
     </a>

@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { PRODUCTS, PRODUCT_BY_ID } from '../data/products.ts'
-import { AREAS, WEIGHTS, costFor, scoreCatalog, verdictFor } from './score.ts'
+import { AREAS, WEIGHTS, compareScored, costFor, rankPositions, scoreCatalog, verdictFor, type Scored } from './score.ts'
 import { MAX_SELECTED, parseCompare, parseTeam, replace, toggle } from './selection.ts'
 
 test('dataset has exactly 10 uniquely named products', () => {
@@ -95,4 +95,85 @@ test('analytics drops an identical event repeated within the dedupe window only'
   assert.ok(buildPayload(e, 10_000))
   assert.equal(buildPayload(e, 10_500), null)
   assert.ok(buildPayload(e, 11_000))
+})
+
+// Phase C1-A: one recommendation order (score, rating, lower price, name), products that can serve the team first.
+const order = (team: number) => [...scoreCatalog(team).values()].sort(compareScored).map((s) => s.product.id)
+const before = (list: string[], a: string, b: string) => list.indexOf(a) < list.indexOf(b)
+
+test('a score tie is broken by rating everywhere it is ranked', () => {
+  const s10 = scoreCatalog(10)
+  assert.equal(s10.get('taskara')!.overall, s10.get('orbitask')!.overall)
+  assert.ok(before(order(10), 'orbitask', 'taskara'))
+  const s100 = scoreCatalog(100)
+  assert.equal(s100.get('taskara')!.overall, s100.get('fernwork')!.overall)
+  assert.ok(before(order(100), 'fernwork', 'taskara'))
+})
+
+test('a tie on score and rating is broken by lower price, then by name', () => {
+  const base = scoreCatalog(10)
+  const like = (id: string, total: number): Scored => {
+    const s = base.get(id)!
+    return { ...s, overall: 70, cost: { ...s.cost, total }, product: { ...s.product, rating: 4.5 } }
+  }
+  assert.ok(compareScored(like('mondray', 100), like('northlane', 200)) < 0, 'lower price first')
+  assert.ok(compareScored(like('northlane', 100), like('mondray', 100)) > 0, 'then name: Mondray before Northlane')
+})
+
+test('products that can serve the team always rank before those that cannot, at every team size', () => {
+  for (let team = 1; team <= 500; team++) {
+    const ranked = [...scoreCatalog(team).values()].sort(compareScored)
+    const firstOut = ranked.findIndex((s) => !s.cost.eligible)
+    if (firstOut >= 0) assert.ok(ranked.slice(firstOut).every((s) => !s.cost.eligible), `team ${team}`)
+    const ranks = rankPositions(scoreCatalog(team))
+    ranked.forEach((s, i) => assert.equal(ranks.get(s.product.id), s.cost.eligible ? i + 1 : undefined))
+  }
+})
+
+test('a product that cannot serve the team never wins, whatever its score', () => {
+  const s = new Map(scoreCatalog(10))
+  const quillo = s.get('quillo')!
+  s.set('quillo', { ...quillo, overall: 99 })
+  assert.equal(quillo.cost.eligible, false)
+  assert.equal(verdictFor(['quillo', 'taskara', 'veloxa'], s).winner?.product.id, 'taskara')
+})
+
+test('crossing a seat cap moves a product out of the ranking and to the end', () => {
+  assert.equal(rankPositions(scoreCatalog(5)).has('quillo'), true)
+  assert.equal(rankPositions(scoreCatalog(6)).has('quillo'), false)
+  assert.equal(order(6).at(-1), 'quillo')
+})
+
+test('analytics v2: clicks and selections carry sort, displayed position, rank and eligibility', async () => {
+  const { buildPayload: build, setTrackContext } = await import('./track.ts')
+  // the payload is a union per event; read it as plain fields
+  const buildPayload = (...args: Parameters<typeof build>) => build(...args) as Record<string, unknown> | null
+  setTrackContext({ team_size: 10, selected_ids: [], winner_id: null, view: null, table_sort: 'price' })
+  const cta = buildPayload({ event: 'product_cta_clicked', product_id: 'orbitask', placement: 'ledger', destination_host: 'orbitask.example', display_position: 3 }, 50_000)
+  assert.ok(cta)
+  assert.equal(cta.schema_version, 2)
+  assert.equal(cta.table_sort, 'price')
+  assert.equal(cta.display_position, 3)
+  assert.equal(cta.rank_position, order(10).indexOf('orbitask') + 1)
+  assert.equal(cta.eligible, true)
+  const out = buildPayload({ event: 'product_cta_clicked', product_id: 'quillo', placement: 'stack', destination_host: 'quillo.example' }, 51_000)
+  assert.ok(out)
+  assert.equal(out.display_position, null)
+  assert.equal(out.rank_position, null)
+  assert.equal(out.eligible, false)
+  const sel = buildPayload({ event: 'product_selected', product_id: 'northlane', slot: 1, source: 'suggestion' }, 52_000)
+  assert.ok(sel)
+  assert.equal(sel.rank_position, 1)
+  assert.equal(sel.display_position, null)
+  assert.equal('eligible' in sel, false)
+  assert.equal(JSON.stringify([cta, out, sel]).includes('@'), false)
+})
+
+test('comparison entry: once per set of 2+ picks, shared by every trigger', async () => {
+  const { startComparison } = await import('./track.ts')
+  assert.equal(startComparison(['northlane'], 'tray'), false, 'one pick is not a comparison')
+  assert.equal(startComparison(['taskara', 'orbitask'], 'tray'), true)
+  assert.equal(startComparison(['orbitask', 'taskara'], 'scroll'), false, 'same set, other trigger and order')
+  assert.equal(startComparison(['taskara', 'orbitask'], 'link'), false)
+  assert.equal(startComparison(['taskara', 'orbitask', 'veloxa'], 'scroll'), true, 'a new set is a new comparison')
 })

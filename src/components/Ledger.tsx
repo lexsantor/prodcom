@@ -1,16 +1,18 @@
-import { Fragment, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { Product } from '../data/products.ts'
-import { adminCoverage, coreCoverage, usd, type Coverage, type Scored } from '../lib/score.ts'
+import { adminCoverage, compareScored, coreCoverage, usd, type Coverage, type Scored } from '../lib/score.ts'
+import { setTrackContext, type TableSort } from '../lib/track.ts'
 import { MAX_SELECTED } from '../lib/selection.ts'
 import { Mark } from './Mark.tsx'
 import { TeamSize } from './TeamSize.tsx'
 import { Tray } from './Tray.tsx'
 import { Visit } from './Visit.tsx'
 
-type SortKey = 'score' | 'price' | 'rating' | 'features' | 'name'
+type SortKey = TableSort
 
 const SORTS: Record<SortKey, { label: string; dir: 'ascending' | 'descending'; cmp: (a: Scored, b: Scored) => number }> = {
-  score: { label: 'Score, highest first', dir: 'descending', cmp: (a, b) => b.overall - a.overall },
+  // the recommendation order itself: products that can serve the team first, then score and the published tie-break
+  score: { label: 'Score, highest first', dir: 'descending', cmp: compareScored },
   price: {
     label: 'Price, lowest first',
     dir: 'ascending',
@@ -29,7 +31,7 @@ interface Props {
   team: number
   blocked: string | null
   onTeam: (n: number) => void
-  onToggle: (id: string) => void
+  onToggle: (id: string, displayPosition?: number) => void
   onReplace: (outgoing: string) => void
   onKeep: () => void
   onRemove: (id: string, focusTarget: string) => void
@@ -40,7 +42,9 @@ export function Ledger(props: Props) {
   const { scores, ids, team, onToggle } = props
   const [sort, setSort] = useState<SortKey>('score')
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set())
-  const rows = useMemo(() => [...scores.values()].sort((a, b) => SORTS[sort].cmp(a, b) || b.overall - a.overall), [scores, sort])
+  // factual sorts keep their own key; ties fall back to the recommendation order
+  const rows = useMemo(() => [...scores.values()].sort((a, b) => SORTS[sort].cmp(a, b) || compareScored(a, b)), [scores, sort])
+  useEffect(() => setTrackContext({ table_sort: sort }), [sort])
   const full = ids.length >= MAX_SELECTED
 
   const toggleOpen = (id: string) =>
@@ -107,7 +111,7 @@ export function Ledger(props: Props) {
             </tr>
           </thead>
           <tbody>
-            {rows.map((s) => {
+            {rows.map((s, i) => {
               const p = s.product
               const slot = ids.indexOf(p.id)
               const isOpen = open.has(p.id)
@@ -115,7 +119,7 @@ export function Ledger(props: Props) {
                 <Fragment key={p.id}>
                   <tr className="lrow" data-selected={slot >= 0 || undefined}>
                     <td className="col-pick">
-                      <Pick product={p} slot={slot} full={full} onToggle={onToggle} variant="table" />
+                      <Pick product={p} slot={slot} full={full} onToggle={onToggle} position={i + 1} variant="table" />
                     </td>
                     <th scope="row" className="col-product">
                       <ProductName product={p} />
@@ -132,12 +136,12 @@ export function Ledger(props: Props) {
                       </button>
                       </div>
                     </th>
-                    <td className="col-num"><span className="score">{s.overall}</span><span className="muted small"> / 100</span></td>
+                    <td className="col-num">{s.cost.eligible ? <><span className="score">{s.overall}</span><span className="muted small"> / 100</span></> : <NotScored s={s} team={team} />}</td>
                     <td className="col-price"><Price s={s} team={team} /></td>
                     <td className="col-rating"><Rating product={p} /></td>
                     <td className="col-features"><CoverageBar c={coreCoverage(p)} /><AiBadge product={p} /></td>
                     <td className="col-sw"><StrengthLimit product={p} /></td>
-                    <td className="col-visit"><Visit product={p} placement="ledger" /></td>
+                    <td className="col-visit"><RowVisit s={s} placement="ledger" position={i + 1} /></td>
                   </tr>
                   <tr className="ldetails" id={`details-${p.id}`} hidden={!isOpen} data-selected={slot >= 0 || undefined}>
                     <td colSpan={8}><Details product={p} /></td>
@@ -149,7 +153,7 @@ export function Ledger(props: Props) {
         </table>
 
         <ul className="ledger-list" aria-label={`Ten fictional project-management tools, priced for a team of ${team}`}>
-          {rows.map((s) => {
+          {rows.map((s, i) => {
             const p = s.product
             const slot = ids.indexOf(p.id)
             return (
@@ -159,7 +163,11 @@ export function Ledger(props: Props) {
                     <ProductName product={p} heading />
                     <Badges product={p} />
                   </span>
-                  <p className="lcard-score"><span className="score">{s.overall}</span><span className="muted"> / 100</span><span className="sr-only"> score</span></p>
+                  <p className="lcard-score">
+                    {s.cost.eligible
+                      ? <><span className="score">{s.overall}</span><span className="muted"> / 100</span><span className="sr-only"> score</span></>
+                      : <NotScored s={s} team={team} />}
+                  </p>
                 </div>
                 <dl className="facts">
                   <div><dt>Price for {team}</dt><dd><Price s={s} team={team} /></dd></div>
@@ -168,8 +176,8 @@ export function Ledger(props: Props) {
                   <div className="facts-wide"><dt>Stands out / Watch out</dt><dd><StrengthLimit product={p} /></dd></div>
                 </dl>
                 <div className="lcard-actions">
-                  <Visit product={p} placement="ledger-card" />
-                  <Pick product={p} slot={slot} full={full} onToggle={onToggle} variant="list" />
+                  <RowVisit s={s} placement="ledger-card" position={i + 1} />
+                  <Pick product={p} slot={slot} full={full} onToggle={onToggle} position={i + 1} variant="list" />
                   <details className="lcard-more">
                     <summary>Details<span className="sr-only"> for {p.name}</span></summary>
                     <Details product={p} />
@@ -205,12 +213,14 @@ interface PickProps {
   product: Product
   slot: number
   full: boolean
-  onToggle: (id: string) => void
+  onToggle: (id: string, displayPosition?: number) => void
+  /** 1-based row position as displayed, for analytics */
+  position: number
   variant: 'table' | 'list'
 }
 
 /** The selection control: a native checkbox, so mouse, touch, Space and screen readers all work. */
-function Pick({ product, slot, full, onToggle, variant }: PickProps) {
+function Pick({ product, slot, full, onToggle, position, variant }: PickProps) {
   const checked = slot >= 0
   const id = `pick-${variant}-${product.id}`
   return (
@@ -220,7 +230,7 @@ function Pick({ product, slot, full, onToggle, variant }: PickProps) {
         type="checkbox"
         data-pick={product.id}
         checked={checked}
-        onChange={() => onToggle(product.id)}
+        onChange={() => onToggle(product.id, position)}
         aria-describedby={!checked && full ? 'tray-full-hint' : undefined}
       />
       <span className="pick-box" aria-hidden="true">
@@ -234,6 +244,20 @@ function Pick({ product, slot, full, onToggle, variant }: PickProps) {
       )}
     </label>
   )
+}
+
+/** Why a product that cannot serve the team gets no score; lower-case for use mid-sentence. */
+export const unservable = (s: Scored) => s.cost.reason ? s.cost.reason[0].toLowerCase() + s.cost.reason.slice(1) : ''
+
+/** In place of a score for a product that cannot serve the team: the number would read as a grade, but means "not applicable". */
+export function NotScored({ s, team }: { s: Scored; team: number }) {
+  return <span className="not-scored">Not scored<span className="sr-only"> for a team of {team}: {unservable(s)}</span></span>
+}
+
+/** The row's Visit: secondary (quiet), with the reason in its name, when the product cannot serve the team. */
+function RowVisit({ s, placement, position }: { s: Scored; placement: 'ledger' | 'ledger-card'; position: number }) {
+  const out = !s.cost.eligible
+  return <Visit product={s.product} placement={placement} displayPosition={position} variant={out ? 'quiet' : 'solid'} note={out ? unservable(s) : undefined} />
 }
 
 /** Plan and AI facts a buyer filters on before anything else. Text labels, so never color alone. */

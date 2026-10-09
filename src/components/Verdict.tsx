@@ -113,7 +113,11 @@ export function Verdict({ verdict, team, behindCount, onShowBehind }: VerdictPro
 
   return (
     <div className="verdict">
-      <p className="verdict-kicker">Best overall: the highest Prodcom score of your {ranked.length + excluded.length}, for a team of {team}</p>
+      <p className="verdict-kicker">
+        {excluded.length > 0
+          ? `Best overall: the highest Prodcom score of your ${ranked.length} picks that can serve a team of ${team}`
+          : `Best overall: the highest Prodcom score of your ${ranked.length}, for a team of ${team}`}
+      </p>
       <h3 className="verdict-title">
         <Mark product={winner.product} size={28} />
         <span className="verdict-name">{winner.product.name}</span>

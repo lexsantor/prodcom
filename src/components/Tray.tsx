@@ -1,15 +1,15 @@
 import { PRODUCT_BY_ID } from '../data/products.ts'
 import { MAX_SELECTED } from '../lib/selection.ts'
 import { Mark } from './Mark.tsx'
-import { track } from '../lib/track.ts'
+import { startComparison } from '../lib/track.ts'
 
-/** Scroll to the head-to-head and move focus to its heading. */
-export function jumpToCompare(e: React.MouseEvent) {
+/** Scroll to the head-to-head and move focus to its heading. Counts as entering a comparison only with 2+ picks. */
+export function jumpToCompare(e: React.MouseEvent, ids: readonly string[]) {
   const target = document.getElementById('compare')
   const heading = document.getElementById('compare-title')
   if (!target || !heading) return
   e.preventDefault()
-  track({ event: 'comparison_started', trigger: 'tray' })
+  startComparison(ids, 'tray')
   if (window.location.hash !== '#compare') {
     window.history.pushState(null, '', `${window.location.pathname}${window.location.search}#compare`)
   }
@@ -81,14 +81,14 @@ export function Tray({ ids, blocked, onReplace, onKeep, onRemove, onClear }: Pro
 
           <div className="tray-actions">
             {n >= 2 && (
-              <a className="btn btn-primary" href="#compare" onClick={jumpToCompare}>
+              <a className="btn btn-primary" href="#compare" onClick={(e) => jumpToCompare(e, ids)}>
                 Compare {n}
                 <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M7 2v9M3 7.5l4 4 4-4" fill="none" stroke="currentColor" strokeWidth="1.75" /></svg>
               </a>
             )}
             {n === 1 && (
               <p className="tray-hint">
-                Tick one more. <a href="#compare" onClick={jumpToCompare}>See alternatives</a>
+                Tick one more. <a href="#compare" onClick={(e) => jumpToCompare(e, ids)}>See alternatives</a>
               </p>
             )}
             {n === 0 && <p className="tray-hint">Tick up to four to compare.</p>}

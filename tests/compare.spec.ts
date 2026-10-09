@@ -204,6 +204,10 @@ test.describe('desktop', () => {
     await expect(page.locator('.verdict').getByRole('link', { name: /^Visit / })).toHaveAttribute('href', /utm_content=verdict/)
     await expect(page.locator('table.matrix thead').getByRole('link', { name: /Visit/ })).toHaveCount(2)
     await expect(page.getByRole('heading', { name: 'Related categories' })).toBeVisible()
+    // no category page exists yet: honest text, nothing that navigates to a 404
+    await expect(page.locator('.related a')).toHaveCount(0)
+    await expect(page.locator('.related-item')).toHaveCount(6)
+    await expect(page.locator('.related-soon')).toHaveText(Array(6).fill('Coming soon'))
     const form = page.locator('.emailme-form')
     await form.getByRole('button', { name: 'Email me the list' }).click()
     await expect(form.getByLabel('Work email')).toHaveAttribute('aria-invalid', 'true')
@@ -222,7 +226,7 @@ test.describe('desktop', () => {
 
     await page.goto('/?compare=northlane')
     await expect.poll(names).toContain('comparison_page_viewed')
-    expect((await events())[0]).toMatchObject({ event: 'comparison_page_viewed', from_shared_link: true, selected_ids: ['northlane'], schema_version: 1 })
+    expect((await events())[0]).toMatchObject({ event: 'comparison_page_viewed', from_shared_link: true, selected_ids: ['northlane'], schema_version: 2, table_sort: 'score' })
 
     await pick(page, 'Taskara').check()
     await tray(page).getByRole('link', { name: /Compare 2/ }).click()
@@ -242,7 +246,7 @@ test.describe('desktop', () => {
 
     const all = await events()
     const byName = (n: string) => all.filter((e) => e.event === n)
-    expect(byName('product_selected')[0]).toMatchObject({ product_id: 'taskara', slot: 2, source: 'ledger' })
+    expect(byName('product_selected')[0]).toMatchObject({ product_id: 'taskara', slot: 2, source: 'ledger', display_position: 6, rank_position: 6 }) // under Score sort, shown order = recommendation order
     expect(byName('comparison_started').map((e) => e.trigger)).toContain('tray')
     expect(byName('comparison_view_changed')[0]).toMatchObject({ from: 'key', to: 'all', trigger: 'control' })
     expect(byName('team_size_changed')).toHaveLength(1) // typing "25" settles into one event
@@ -251,6 +255,8 @@ test.describe('desktop', () => {
     expect(cta).toHaveLength(1)
     expect(cta[0]).toMatchObject({ placement: 'verdict', destination_host: `${cta[0].product_id}.example`, comparison_view: 'all', team_size: 25 })
     expect(cta[0].winner_id).toBe(cta[0].product_id)
+    // v2 context: a verdict click has no table position, but its recommendation rank and eligibility for 25 people
+    expect(cta[0]).toMatchObject({ display_position: null, rank_position: 1, eligible: true, table_sort: 'score' })
     expect(byName('product_deselected')[0]).toMatchObject({ product_id: 'taskara', source: 'tray' })
     expect(byName('email_capture_submitted')[0]).toMatchObject({ alerts_opt_in: false })
     // every event shares one page view id, and no event carries the email address
@@ -318,3 +324,105 @@ test('400% zoom equivalent: the tray never covers a focused checkbox', async ({ 
   })
   expect(covered).toBe(false)
 })
+
+// Phase C1-A: one recommendation order; products that cannot serve the team are not scored.
+test.describe('ranking and eligibility (desktop)', () => {
+  test.use({ viewport: { width: 1440, height: 900 } })
+  const tableOrder = (page: Page) => page.locator('tr.lrow .pname-name').allTextContents()
+
+  test('the table breaks score ties the way the verdict does', async ({ page }) => {
+    await page.goto('/')
+    const order = await tableOrder(page)
+    expect(order.indexOf('Orbitask')).toBeLessThan(order.indexOf('Taskara')) // both 68 for 10; Orbitask rated higher
+    await pick(page, 'Taskara').check()
+    await pick(page, 'Orbitask').check()
+    await expect(page.locator('.verdict-title')).toContainText('Orbitask')
+    await page.getByLabel('Team size').fill('100')
+    await page.getByLabel('Team size').press('Enter')
+    await expect.poll(async () => { const o = await tableOrder(page); return o.indexOf('Fernwork') < o.indexOf('Taskara') }).toBe(true)
+  })
+
+  test('factual sorts keep their own key and fall back to the recommendation order', async ({ page }) => {
+    await page.goto('/')
+    await page.getByRole('button', { name: /^Rating/ }).click()
+    const ratings = (await page.locator('tr.lrow .rating-n').allTextContents()).map(Number)
+    expect(ratings).toEqual([...ratings].sort((a, b) => b - a))
+    expect((await tableOrder(page))[0]).toBe('Orbitask') // 4.8, the highest rating
+  })
+
+  test('a product that cannot serve the team: not scored, last, a quiet Visit that says why, still selectable', async ({ page }) => {
+    await page.goto('/')
+    const row = page.locator('tr.lrow', { has: page.getByText('Quillo', { exact: true }) })
+    await expect(row.locator('.col-num')).toHaveText(/^Not scored/)
+    await expect(row.locator('.col-num .score')).toHaveCount(0)
+    expect((await tableOrder(page)).at(-1)).toBe('Quillo')
+    const visit = row.getByRole('link', { name: /Visit Quillo/ })
+    await expect(visit).toHaveClass(/visit-quiet/)
+    await expect(visit).toHaveAccessibleName('Visit Quillo, supports at most 5 seats (opens in a new tab)')
+    await expect(visit).toHaveAttribute('href', /quillo\.example.*utm_content=ledger$/)
+    await expect(page.locator('tr.lrow', { has: page.getByText('Northlane', { exact: true }) }).locator('a.visit')).toHaveClass(/visit-solid/)
+    await pick(page, 'Quillo').check()
+    await expect(tray(page)).toContainText('1 of 4')
+    await expect(page.locator('.state-one')).toContainText("Quillo can't serve a team of 10")
+    // with a smaller team it is scored again
+    await page.getByLabel('Team size').fill('3')
+    await page.getByLabel('Team size').press('Enter')
+    await expect(row.locator('.col-num .score')).toHaveText(/^\d+$/)
+    await expect(row.locator('a.visit')).toHaveClass(/visit-solid/)
+  })
+
+  test('in the head-to-head it is kept, not scored, and never the winner; the change is announced', async ({ page }) => {
+    await page.goto('/?compare=quillo,taskara,veloxa&team=3')
+    await expect(page.locator('.verdict-title')).toBeVisible()
+    await page.getByLabel('Team size').fill('10')
+    await page.getByLabel('Team size').press('Enter')
+    await expect(page.getByRole('status').filter({ hasText: 'Prices and scores updated' })).toContainText("Quillo can't serve 10 and is left out of the verdict.")
+    await expect(tray(page)).toContainText('3 of 4') // picks are never removed
+    await expect(page.locator('.verdict-title')).toContainText('Taskara')
+    await expect(page.locator('.verdict-kicker')).toHaveText('Best overall: the highest Prodcom score of your 2 picks that can serve a team of 10')
+    const head = page.locator('table.matrix th.m-head', { hasText: 'Quillo' })
+    await expect(head).toContainText("Can't serve 10")
+    await expect(head).toContainText('Not scored')
+    await page.getByRole('radio', { name: /Complete matrix/ }).check()
+    const col = await page.locator('table.matrix thead th.m-head').evaluateAll((ths) => ths.findIndex((t) => t.textContent!.includes('Quillo')))
+    const overall = page.locator('table.matrix tbody tr', { has: page.locator('th', { hasText: /^Overall/ }) }).locator('td').nth(col)
+    await expect(overall).toHaveText('Not scored')
+  })
+})
+
+// Phase C1-B: one Visit per pick in the phone and tablet head-to-head, as the desktop matrix has.
+for (const width of [320, 375, 768]) {
+  test(`${width}px head-to-head: a Visit for every pick, the winner distinguished, not sticky`, async ({ page, context }) => {
+    await context.route(/\.example\//, (r) => r.fulfill({ status: 200, body: 'vendor' }))
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto('/?compare=northlane,mondray,taskara,quillo')
+    const list = page.getByRole('list', { name: 'Vendor sites for your picks' })
+    await expect(list).toBeVisible()
+    const visits = list.getByRole('link')
+    await expect(visits).toHaveCount(4)
+    for (const [i, name] of ['Northlane', 'Mondray', 'Taskara', 'Quillo'].entries()) {
+      const v = visits.nth(i)
+      await expect(v).toHaveAccessibleName(new RegExp(`^Visit ${name}`))
+      await expect(v).toHaveAttribute('href', new RegExp(`^https://${name.toLowerCase()}\\.example/\\?utm_source=prodcom&utm_medium=compare&utm_content=stack$`))
+      await expect(v).toHaveAttribute('target', '_blank')
+      await expect(v).toHaveAttribute('rel', 'sponsored noopener')
+      expect((await v.boundingBox())!.height).toBeGreaterThanOrEqual(44)
+    }
+    const best = list.locator('li[data-best]')
+    await expect(best).toHaveCount(1)
+    await expect(best).toContainText('Northlane')
+    await expect(best).toContainText('Best overall')
+    await expect(best.locator('a.visit')).toHaveClass(/visit-solid/)
+    await expect(list.locator('li', { hasText: 'Quillo' })).toContainText("Can't serve 10")
+    await expect(visits.nth(3)).toHaveAccessibleName('Visit Quillo, supports at most 5 seats (opens in a new tab)')
+    expect(await list.evaluate((el) => getComputedStyle(el).position)).toBe('static')
+    await noPageOverflow(page)
+
+    const popupPromise = page.waitForEvent('popup')
+    await visits.nth(1).click()
+    await (await popupPromise).close()
+    const ctas = await page.evaluate(() => (window as unknown as { dataLayer: Record<string, unknown>[] }).dataLayer.filter((e) => e.event === 'product_cta_clicked'))
+    expect(ctas).toHaveLength(1)
+    expect(ctas[0]).toMatchObject({ product_id: 'mondray', placement: 'stack', display_position: null, eligible: true, destination_host: 'mondray.example' })
+  })
+}

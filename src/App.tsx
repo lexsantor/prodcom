@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PRODUCT_BY_ID } from './data/products.ts'
-import { TEAM_DEFAULT, scoreCatalog } from './lib/score.ts'
+import { TEAM_DEFAULT, costFor, scoreCatalog } from './lib/score.ts'
 import { MAX_SELECTED, parseCompare, parseTeam, replace, toggle } from './lib/selection.ts'
 import { Ledger } from './components/Ledger.tsx'
 import { HeadToHead } from './components/HeadToHead.tsx'
@@ -24,6 +24,18 @@ export function focusPick(id: string) {
 
 export function focusById(id: string) {
   requestAnimationFrame(() => document.getElementById(id)?.focus({ preventScroll: false }))
+}
+
+/** Picks whose ability to serve the team changes between two team sizes, said aloud; picks are never removed. */
+function eligibilityChanges(ids: readonly string[], from: number, to: number): string[] {
+  return ids.flatMap((id) => {
+    const p = PRODUCT_BY_ID.get(id)
+    if (!p) return []
+    const was = costFor(p, from).eligible
+    const is = costFor(p, to).eligible
+    if (was === is) return []
+    return [is ? `${p.name} can serve ${to} again and is back in the verdict.` : `${p.name} can't serve ${to} and is left out of the verdict.`]
+  })
 }
 
 export function App() {
@@ -95,7 +107,7 @@ export function App() {
 
   const say = (text: string) => setAnnouncement(text)
 
-  function onToggle(id: string) {
+  function onToggle(id: string, displayPosition?: number) {
     const result = toggle(ids, id)
     if (result.kind === 'full') {
       track({ event: 'comparison_full_blocked', product_id: id })
@@ -107,7 +119,7 @@ export function App() {
     setIds(result.ids)
     setTrackContext({ selected_ids: result.ids })
     track(result.kind === 'added'
-      ? { event: 'product_selected', product_id: id, slot: result.ids.indexOf(id) + 1, source: 'ledger' }
+      ? { event: 'product_selected', product_id: id, slot: result.ids.indexOf(id) + 1, source: 'ledger', display_position: displayPosition ?? null }
       : { event: 'product_deselected', product_id: id, source: 'ledger' })
     say(`${nameOf(id)} ${result.kind === 'added' ? 'added to' : 'removed from'} the comparison. ${result.ids.length} of ${MAX_SELECTED} selected.`)
   }
@@ -162,7 +174,7 @@ export function App() {
     }, 1000)
     setTeam(n)
     setTrackContext({ team_size: n })
-    say(`Prices and scores updated for a team of ${n}.`)
+    say([`Prices and scores updated for a team of ${n}.`, ...eligibilityChanges(ids, team, n)].join(' '))
   }
 
   return (

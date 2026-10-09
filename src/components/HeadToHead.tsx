@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MAX_SELECTED } from '../lib/selection.ts'
-import { compareScored, nearestBy, usd, verdictFor, type Scored } from '../lib/score.ts'
+import { nearestBy, topEligible, usd, verdictFor, type Scored } from '../lib/score.ts'
 import { focusLedger, focusVisible } from '../lib/focus.ts'
-import { setTrackContext, track } from '../lib/track.ts'
+import { setTrackContext, startComparison, track } from '../lib/track.ts'
+import { NotScored, unservable } from './Ledger.tsx'
 import { Mark } from './Mark.tsx'
 import { Visit } from './Visit.tsx'
 import { Verdict } from './Verdict.tsx'
@@ -52,22 +53,27 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
 
   useEffect(() => setTrackContext({ winner_id: winnerId ?? null, view: picked.length >= 2 ? view : null }), [winnerId, view, picked.length])
 
-  // comparison_started (scroll): the head-to-head comes into view with 2+ picks, once per set of picks
-  const sectionRef = useRef<HTMLElement>(null)
-  const seenSets = useRef(new Set<string>())
+  // comparison_started (scroll | link): the heading reaches the upper half of the viewport with 2+ picks.
+  // The heading is small and fixed-height, so this works however tall the comparison grows; a share of the
+  // whole section cannot (a 4-pick phone comparison is ~12 viewports tall). Deduplicated with the tray's
+  // "Compare N" in one registry (startComparison), once per set of picks.
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  /** the page was opened on #compare: the first sighting of the heading is the link's doing, not a scroll */
+  const fromLink = useRef(typeof window !== 'undefined' && window.location.hash === '#compare')
   const setKey = [...ids].sort().join(',')
   useEffect(() => {
-    const el = sectionRef.current
-    if (!el || ids.length < 2 || seenSets.current.has(setKey) || typeof IntersectionObserver === 'undefined') return
+    const el = headingRef.current
+    if (!el || ids.length < 2 || typeof IntersectionObserver === 'undefined') return
     const io = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting || seenSets.current.has(setKey)) return
-      seenSets.current.add(setKey)
-      track({ event: 'comparison_started', trigger: 'scroll' })
+      const trigger = fromLink.current ? 'link' : 'scroll'
+      fromLink.current = false
+      if (!entry.isIntersecting) return
+      startComparison(ids, trigger)
       io.disconnect()
-    }, { threshold: 0.15 })
+    }, { rootMargin: '0px 0px -50% 0px' })
     io.observe(el)
     return () => io.disconnect()
-  }, [setKey, ids.length])
+  }, [setKey]) // one observer per set of picks; ids is read through setKey
 
   function chooseView(v: View) {
     track({ event: 'comparison_view_changed', from: view, to: v, rows: counts[v], trigger: 'control' })
@@ -97,11 +103,11 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
   }
 
   return (
-    <section className="h2h" id="compare" aria-labelledby="compare-title" ref={sectionRef}>
+    <section className="h2h" id="compare" aria-labelledby="compare-title">
       <div className="wrap">
         <div className="h2h-head">
           <div>
-            <h2 id="compare-title" tabIndex={-1}>Head-to-head</h2>
+            <h2 id="compare-title" tabIndex={-1} ref={headingRef}>Head-to-head</h2>
             <p className="section-sub">Only the products you ticked, priced for a team of {team}.</p>
           </div>
           {picked.length > 0 && (
@@ -139,7 +145,7 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
 
             <SectionNav groups={visible} />
             <MatrixTable picked={picked} groups={visible} winner={winner} team={team} onRemove={onRemove} />
-            <Stacks picked={picked} groups={visible} winner={winner} />
+            <Stacks picked={picked} groups={visible} winner={winner} team={team} />
           </>
         )}
       </div>
@@ -225,7 +231,7 @@ function MatrixTable({ picked, groups, winner, team, onRemove }: {
                   {!s.cost.eligible && <span className="out-label">Can't serve {team}</span>}
                 </span>
                 <span className="m-head-name"><Mark product={s.product} size={28} />{s.product.name}</span>
-                <span className="m-head-meta"><span className="num">{s.overall}</span> / 100</span>
+                <span className="m-head-meta">{s.cost.eligible ? <><span className="num">{s.overall}</span> / 100</> : <NotScored s={s} team={team} />}</span>
               </th>
             )
           })}
@@ -235,7 +241,7 @@ function MatrixTable({ picked, groups, winner, team, onRemove }: {
           <td />
           {picked.map((s) => (
             <td key={s.product.id} data-best={s.product.id === winnerId || undefined}>
-              <Visit product={s.product} placement="matrix" variant={s.product.id === winnerId ? 'solid' : 'quiet'} />
+              <Visit product={s.product} placement="matrix" variant={s.product.id === winnerId ? 'solid' : 'quiet'} note={s.cost.eligible ? undefined : unservable(s)} />
               <button type="button" className="btn btn-link small" onClick={() => onRemove(s.product.id, 'compare-title')}>
                 Remove<span className="sr-only"> {s.product.name}</span>
               </button>
@@ -281,10 +287,28 @@ function MatrixTable({ picked, groups, winner, team, onRemove }: {
 }
 
 /** Narrow screens: attribute-first stacks keep every pick's value for one attribute together. */
-function Stacks({ picked, groups, winner }: { picked: Scored[]; groups: Visible; winner?: Scored }) {
+function Stacks({ picked, groups, winner, team }: { picked: Scored[]; groups: Visible; winner?: Scored; team: number }) {
   const winnerId = winner?.product.id
   return (
     <div className="stacks">
+      {/* One Visit per pick, as the desktop matrix has. Not sticky: it scrolls away with the top of the comparison. */}
+      <ul className="stack-actions" aria-label="Vendor sites for your picks">
+        {picked.map((s, i) => {
+          const best = s.product.id === winnerId
+          return (
+            <li key={s.product.id} data-best={best || undefined}>
+              <span className="slot-n" aria-hidden="true">{i + 1}</span>
+              <Mark product={s.product} size={18} />
+              <span className="stack-actions-name">
+                {s.product.name}
+                {best && <span className="best-label"><BestGlyph />Best overall</span>}
+                {!s.cost.eligible && <span className="out-label">Can't serve {team}</span>}
+              </span>
+              <Visit product={s.product} placement="stack" variant={best ? 'solid' : 'quiet'} note={s.cost.eligible ? undefined : unservable(s)} />
+            </li>
+          )
+        })}
+      </ul>
       <ol className="stack-key" aria-label="Your picks">
         {picked.map((s, i) => (
           <li key={s.product.id} data-best={s.product.id === winnerId || undefined}>
@@ -348,7 +372,7 @@ function BestGlyph() {
 }
 
 function EmptyState({ scores, onSelect }: { scores: Map<string, Scored>; onSelect: Props['onSelect'] }) {
-  const top = [...scores.values()].filter((s) => s.cost.eligible).sort(compareScored).slice(0, 3)
+  const top = topEligible(scores, 3)
   return (
     <div className="state state-empty">
       <ol className="ghost-slots" aria-hidden="true">
@@ -362,13 +386,15 @@ function EmptyState({ scores, onSelect }: { scores: Map<string, Scored>; onSelec
         </p>
         <div className="state-actions">
           <a className="btn btn-quiet" href="#ledger">Go to the table</a>
-          <button
-            type="button"
-            className="btn btn-quiet"
-            onClick={() => onSelect(top.map((s) => s.product.id), `Added the top three by score: ${top.map((s) => s.product.name).join(', ')}.`, 'compare-title', 'top-three')}
-          >
-            Try the top three by score
-          </button>
+          {top.length >= 2 && (
+            <button
+              type="button"
+              className="btn btn-quiet"
+              onClick={() => onSelect(top.map((s) => s.product.id), `Added the top three by score: ${top.map((s) => s.product.name).join(', ')}.`, 'compare-title', 'top-three')}
+            >
+              Try the top three by score
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -378,14 +404,23 @@ function EmptyState({ scores, onSelect }: { scores: Map<string, Scored>; onSelec
 function OneState({ only, scores, ids, team, onSelect }: {
   only: Scored; scores: Map<string, Scored>; ids: string[]; team: number; onSelect: Props['onSelect']
 }) {
-  const near = nearestBy(only.product.id, scores, 3)
+  // without a score there is no "closest on score": suggest the best that can serve the team instead
+  const eligible = only.cost.eligible
+  const near = eligible ? nearestBy(only.product.id, scores, 3) : topEligible(scores, 3, ids)
   return (
     <div className="state state-one">
       <h3>{only.product.name} is in. Add at least one more to compare.</h3>
-      <p>
-        A comparison needs two products. {only.product.name} scores {only.overall} for a team of {team}.
-        These are the closest to it on score:
-      </p>
+      {eligible ? (
+        <p>
+          A comparison needs two products. {only.product.name} scores {only.overall} for a team of {team}.
+          These are the closest to it on score:
+        </p>
+      ) : (
+        <p>
+          A comparison needs two products. {only.product.name} can't serve a team of {team}: it {unservable(only)}, so it is not scored.
+          These score highest for a team of {team}:
+        </p>
+      )}
       <ul className="near">
         {near.map((s) => (
           <li key={s.product.id}>
