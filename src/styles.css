@@ -28,6 +28,9 @@
   --gutter: 16px;
   --radius: 3px;
   --tray-h: 112px;
+  /* The free-plan host badge (fixed, bottom-right, 64px tall plus a 5px hit bleed) cannot be removed:
+     the pinned tray floats above it so no tray control sits under it. */
+  --badge-clear: 60px;
   --dur: 120ms;
   color-scheme: light;
 }
@@ -41,7 +44,7 @@
 html {
   overflow-x: clip; /* LAYOUT-004: clip keeps sticky headers working */
   scroll-padding-top: 120px; /* sticky table heads never cover a focused row (C-1) */
-  scroll-padding-bottom: calc(var(--tray-h) + 24px);
+  scroll-padding-bottom: calc(var(--tray-h) + var(--badge-clear) + 24px);
   -webkit-text-size-adjust: 100%;
 }
 
@@ -372,7 +375,9 @@ th[aria-sort] .sort { color: var(--ink); }
 .facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin-top: 14px; }
 .facts dt { font-size: var(--t-xs); color: var(--ink-2); margin-bottom: 2px; }
 .facts dd { font-size: var(--t-sm); overflow-wrap: break-word; }
-.facts .price-total, .facts .rating-n { font-size: var(--t-md); }
+/* Price keeps its --t-xl size (= score) in cards too: it is the fact that decides; rating stays smaller. */
+.facts .rating-n { font-size: var(--t-md); }
+.facts .price-total { line-height: 1.15; }
 .lcard-actions { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 8px; margin-top: 14px; }
 .lcard-actions .visit { min-height: 44px; }
 .lcard-id { display: grid; min-width: 0; }
@@ -401,7 +406,7 @@ th[aria-sort] .sort { color: var(--ink); }
 
 /* ---------- Tray ---------- */
 .tray-dock {
-  position: sticky; bottom: 0; z-index: 6;
+  position: sticky; bottom: var(--badge-clear); z-index: 6;
   padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom));
   margin-top: 24px; pointer-events: none;
 }
@@ -482,7 +487,7 @@ th[aria-sort] .sort { color: var(--ink); }
 @media (max-width: 899px) {
   .tray-dock[data-empty] { position: static; }
 }
-html:has(.tray-full) { scroll-padding-bottom: 360px; }
+html:has(.tray-full) { scroll-padding-bottom: calc(360px + var(--badge-clear)); }
 /* Short viewports (200%+ zoom, landscape phones): the tray stops pinning so it never covers focused rows (WCAG 2.4.11). */
 @media (max-height: 520px) { .tray-dock { position: static; } }
 @media (min-width: 900px) {
