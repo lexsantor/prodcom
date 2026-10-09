@@ -12,6 +12,7 @@ npm run dev        # local dev server
 npm run build      # typecheck, build and prerender to dist/client
 npm test           # logic unit tests (node --test)
 npx playwright test  # E2E against the built site (run npm run build first)
+PLAYWRIGHT_BASE_URL=https://prodcom-v1.netlify.app npx playwright test  # same suite against production (read-only)
 ```
 
 ## Deploy (Netlify)
