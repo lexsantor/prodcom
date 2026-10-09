@@ -167,6 +167,38 @@ test('table scores stay on one line, unclipped and aligned with their header', a
   }
 })
 
+test('table feature bars fit their cell and leave the next column clear', async ({ page }) => {
+  for (const width of [1040, 1050, 1080, 1100, 1150, 1179, 1180, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto(FOUR)
+    const r = await page.evaluate(() => {
+      const rows = [...document.querySelectorAll<HTMLElement>('.ledger-table tbody tr.lrow')]
+      const problems: string[] = []
+      for (const row of rows) {
+        const td = row.querySelector<HTMLElement>('td.col-features')!, cs = getComputedStyle(td), tr = td.getBoundingClientRect()
+        const left = tr.left + parseFloat(cs.paddingLeft), right = tr.right - parseFloat(cs.paddingRight)
+        const bar = td.querySelector<HTMLElement>('.coverage-bar')!, br = bar.getBoundingClientRect()
+        const cells = [...bar.children].map((c) => c.getBoundingClientRect())
+        const total = Number(td.querySelector('.coverage .line')!.textContent!.match(/of (\d+)/)![1])
+        const next = row.querySelector('td.col-sw li')!.getBoundingClientRect() // its "+" glyph sits at the li's left edge
+        const name = row.querySelector('.pname-name')!.textContent
+        // 0.5px: subpixel rounding of percentage column widths
+        if (br.left < left - 0.5 || br.right > right + 0.5) problems.push(`${name}: bar ${br.left.toFixed(1)}-${br.right.toFixed(1)} outside ${left.toFixed(1)}-${right.toFixed(1)}`)
+        if (cells.some((c) => c.right > right + 0.5)) problems.push(`${name}: a cell runs past the content box`)
+        if (bar.scrollWidth > bar.clientWidth + 1) problems.push(`${name}: bar content clipped`)
+        if (cells.length !== total || cells.some((c) => c.width < 4 || c.height < 12)) problems.push(`${name}: ${cells.length}/${total} cells, min ${Math.min(...cells.map((c) => c.width)).toFixed(1)}px`)
+        if (next.left < br.right) problems.push(`${name}: bar reaches the Stands out column`)
+        const visit = row.querySelector<HTMLElement>('td.col-visit a[data-visit]')!.getBoundingClientRect()
+        const price = row.querySelector('td.col-price')!.textContent!.trim()
+        if (!price) problems.push(`${name}: no price`)
+        if (visit.width < 24 || visit.height < 24) problems.push(`${name}: visit target ${visit.width}x${visit.height}`)
+      }
+      return { problems, overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth }
+    })
+    expect(r, `${width}px`).toEqual({ problems: [], overflow: 0 })
+  }
+})
+
 test('desktop layout is unchanged at 1280 and 1440px', async ({ page }) => {
   for (const width of [1280, 1440]) {
     await load(page, width, FOUR)

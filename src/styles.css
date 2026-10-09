@@ -209,6 +209,10 @@ h2 {
 .coverage-bar .cell, .key-item .cell { display: inline-block; width: 7px; height: 14px; border-radius: 1px; background: var(--rule); }
 .coverage-bar .cell-2, .key-item .cell-2 { background: var(--ink); }
 .coverage-bar .cell-1, .key-item .cell-1 { background: repeating-linear-gradient(135deg, var(--ink-2) 0 1.5px, var(--paper) 1.5px 3.5px); box-shadow: inset 0 0 0 1px var(--ink-2); }
+/* In the table the bar fits its cell: 15 fixed 7px cells (133px) exceeded the features column's content box at every
+   table width (98px at 1040, 123 at 1280+). Cells share the cell width equally, never wider than 7px. */
+.ledger-table .coverage-bar { display: flex; }
+.ledger-table .coverage-bar .cell { width: auto; flex: 1 1 0; max-width: 7px; min-width: 0; }
 
 .pname { display: flex; align-items: flex-start; gap: 10px; }
 .pname { align-items: center; gap: 12px; }
