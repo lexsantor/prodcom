@@ -7,3 +7,14 @@ export function focusVisible(...ids: string[]) {
     el?.focus({ preventScroll: true })
   })
 }
+
+/** Back to the table: focus the first visible ticked checkbox, else the table heading. */
+export function focusLedger() {
+  requestAnimationFrame(() => {
+    const pick = [...document.querySelectorAll<HTMLInputElement>('input[data-pick]:checked')].find((b) => b.offsetParent !== null)
+    const el = pick ?? document.getElementById('ledger-title')
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    el?.scrollIntoView({ block: 'center', behavior: reduce ? 'auto' : 'smooth' })
+    el?.focus({ preventScroll: true })
+  })
+}

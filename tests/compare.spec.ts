@@ -64,69 +64,85 @@ test.describe('desktop', () => {
     await tray(page).getByRole('link', { name: /Compare 3/ }).click()
     await expect(page.locator('#compare-title')).toBeFocused()
 
-    // the "All differences" view hides identical rows
-    const rows = await page.locator('table.matrix tbody tr:not(.m-group)').count()
-    await page.getByRole('radio', { name: /All differences/ }).check()
-    expect(await page.locator('table.matrix tbody tr:not(.m-group)').count()).toBeLessThan(rows)
+    // browser Back returns to the table on the first pick instead of leaving the site
+    await page.goBack()
+    await expect(pick(page, 'Mondray')).toBeFocused()
+    await tray(page).getByRole('link', { name: /Compare 3/ }).click()
+    await expect(page.locator('#compare-title')).toBeFocused()
 
-    // clear
+    // key differences is the default; the complete matrix adds the rest
+    const rows = page.locator('table.matrix tbody tr:not(.m-group)')
+    const key = await rows.count()
+    await page.getByRole('radio', { name: /Complete matrix/ }).check()
+    expect(await rows.count()).toBeGreaterThan(key)
+
+    // "Change products" goes back to the table, on the first pick
+    await page.getByRole('link', { name: 'Change products' }).click()
+    await expect(pick(page, 'Mondray')).toBeFocused()
+
+    // clear keeps focus in the tray instead of dropping it to the page
     await tray(page).getByRole('button', { name: 'Clear all' }).click()
     await expect(tray(page)).toContainText('0 of 4')
+    await expect(page.locator('#tray-count')).toBeFocused()
     expect(errors).toEqual([])
   })
 
-  test('evidence is ranked against the winner and reachable from the verdict', async ({ page }) => {
+  test('key differences by default, verdict links to flagged rows, three levels', async ({ page }) => {
     await page.goto('/?compare=northlane,taskara')
     const views = page.getByRole('group', { name: 'Show rows' })
-    await expect(views.getByRole('radio', { name: /Everything/ })).toBeChecked()
-    const matrixRows = page.locator('table.matrix tbody tr:not(.m-group)')
-    const everything = await matrixRows.count()
+    const keyOpt = views.getByRole('radio', { name: /Key differences/ })
+    await expect(keyOpt).toBeChecked()
+    const rows = page.locator('table.matrix tbody tr:not(.m-group)')
+    const key = await rows.count()
+    expect(key).toBeGreaterThan(0)
+    // key rows always differ between picks, and the option states its count
+    await expect(page.locator('table.matrix tbody tr[data-status="same"]')).toHaveCount(0)
+    await expect(keyOpt).toHaveAccessibleName(new RegExp(`${key} rows`))
 
-    // the verdict leads to the rows where the winner is behind
+    // the verdict lands on the first row where the winner is behind
     await page.getByRole('button', { name: 'See where Northlane is behind' }).click()
-    await expect(views.getByRole('radio', { name: /Where Northlane is behind/ })).toBeChecked()
-    await expect(page.locator('#view-control')).toBeFocused()
-    const behind = await matrixRows.count()
-    expect(behind).toBeGreaterThan(0)
-    expect(behind).toBeLessThan(everything)
-    // every row in that view says so in text, and the option states the same count
-    await expect(page.locator('table.matrix tbody tr:not(.m-group) .row-flag')).toHaveCount(behind)
-    await expect(views.getByRole('radio', { name: /Where Northlane is behind/ })).toHaveAccessibleName(new RegExp(`${behind} rows`))
+    await expect(page.locator('table.matrix th.m-label:focus .row-flag')).toHaveCount(1)
 
-    // every group still announces itself, even when empty in this view
+    // essentials and the complete matrix
+    await views.getByRole('radio', { name: /Essentials/ }).check()
+    const essential = await rows.count()
+    await views.getByRole('radio', { name: /Complete matrix/ }).check()
+    const all = await rows.count()
+    expect(essential).toBeLessThan(all)
+    expect(key).toBeLessThan(all)
     await expect(page.locator('table.matrix .m-group')).toHaveCount(10)
 
-    // a trade-off reason links to its evidence group
+    // section index and evidence links move focus to their target
+    await page.getByRole('navigation', { name: 'Comparison sections' }).getByRole('link', { name: /Admin and security/ }).click()
+    await expect(page.locator('#m-admin')).toBeFocused()
     await page.getByRole('link', { name: 'See the price rows' }).click()
     await expect(page.locator('#m-price-cost')).toBeFocused()
-
-    // back to the full dataset
-    await views.getByRole('radio', { name: /Everything/ }).check()
-    await expect(matrixRows).toHaveCount(everything)
   })
 
-  test('the behind view is complete, names who leads, and survives a shared link', async ({ page }) => {
-    await page.goto('/?compare=northlane,taskara&view=behind')
-    await expect(page.getByRole('radio', { name: /Where Northlane is behind/ })).toBeChecked()
-    // the verdict cites Taskara's quicker setup, so that row must be in the behind view, naming Taskara
+  test('behind flags name who leads; views survive a shared link; old links fall back', async ({ page }) => {
+    await page.goto('/?compare=northlane,taskara&view=all')
+    await expect(page.getByRole('radio', { name: /Complete matrix/ })).toBeChecked()
+    // the verdict cites Taskara's quicker setup, so that row is flagged and names Taskara
     const setup = page.locator('table.matrix tbody tr', { has: page.getByRole('rowheader', { name: /Typical setup/ }) })
-    await expect(setup.locator('.row-flag')).toHaveText('Northlane behind Taskara')
-    // score areas summarise other rows and are not double-counted here
-    await expect(page.locator('#m-score')).toContainText('Score areas summarise the rows below')
-    // an empty group never claims more than the ranking shows
-    await expect(page.locator('#m-fit')).toContainText('not behind on any ranked row')
-    // switching back to Everything drops the view from the URL
-    await page.getByRole('radio', { name: /Everything/ }).check()
+    await expect(setup.locator('.row-flag')).toContainText('Taskara leads')
+    await expect(setup.locator('.row-flag .sr-only')).toHaveText('Northlane behind Taskara')
+    await page.getByRole('radio', { name: /Key differences/ }).check()
     await expect(page).not.toHaveURL(/view=/)
-    await page.getByRole('radio', { name: /All differences/ }).check()
-    await expect(page).toHaveURL(/compare=northlane,taskara.*view=diff|view=diff.*compare=northlane,taskara/)
+    // the overall score is a key difference; score areas summarise other rows and stay out
+    await expect(page.locator('#m-score-overall')).toBeVisible()
+    await expect(page.locator('#m-score-area-value')).toHaveCount(0)
+    await page.getByRole('radio', { name: /Essentials/ }).check()
+    await expect(page).toHaveURL(/view=essential/)
+    // links shared before the three-level views open on key differences
+    await page.goto('/?compare=northlane,taskara&view=behind')
+    await expect(page.getByRole('radio', { name: /Key differences/ })).toBeChecked()
   })
 
-  test('no "behind" view without a winner', async ({ page }) => {
+  test('without a winner, key differences still compare the eligible picks', async ({ page }) => {
     await page.goto('/?compare=quillo,orbitask')
     await expect(page.getByRole('heading', { name: 'No verdict for this set yet' })).toBeVisible()
-    await expect(page.getByRole('radio', { name: /is behind/ })).toHaveCount(0)
-    await expect(page.getByRole('radio', { name: /Everything/ })).toBeChecked()
+    await expect(page.getByRole('radio', { name: /Key differences/ })).toBeChecked()
+    await expect(page.locator('table.matrix .row-flag')).toHaveCount(0)
   })
 
   test('team size reprices and can exclude a product from the verdict', async ({ page }) => {
@@ -151,6 +167,78 @@ test.describe('desktop', () => {
     await expect(tray(page)).toContainText('2 of 4')
     const outline = await page.evaluate(() => getComputedStyle(document.activeElement!.nextElementSibling!).outlineStyle)
     expect(outline).toBe('solid')
+  })
+
+  test('visit links, badges, details, related categories and the email form', async ({ page }) => {
+    await page.goto('/?compare=northlane,mondray')
+    const row = page.locator('tr.lrow', { has: page.getByText('Stackhaven', { exact: true }) })
+    // Visit is the row CTA: outbound, new tab, attributed
+    const visit = row.getByRole('link', { name: /Visit Stackhaven/ })
+    await expect(visit).toHaveAttribute('target', '_blank')
+    await expect(visit).toHaveAttribute('rel', /sponsored/)
+    await expect(visit).toHaveAttribute('href', /stackhaven\.example.*utm_content=ledger/)
+    await expect(row.locator('.badge')).toContainText(['Free version', '14-day free trial', 'AI'])
+    // Details moved under the product name and still expands
+    const details = row.getByRole('button', { name: 'Details for Stackhaven' })
+    await details.click()
+    await expect(details).toHaveAttribute('aria-expanded', 'true')
+    await expect(page.locator('#details-stackhaven')).toContainText('AI: Automations from plain English')
+    // verdict and matrix carry the outbound CTA too
+    await expect(page.locator('.verdict').getByRole('link', { name: /^Visit / })).toHaveAttribute('href', /utm_content=verdict/)
+    await expect(page.locator('table.matrix thead').getByRole('link', { name: /Visit/ })).toHaveCount(2)
+    await expect(page.getByRole('heading', { name: 'Related categories' })).toBeVisible()
+    const form = page.locator('.emailme-form')
+    await form.getByRole('button', { name: 'Email me the list' }).click()
+    await expect(form.getByLabel('Work email')).toHaveAttribute('aria-invalid', 'true')
+    await expect(form.getByLabel('Work email')).toBeFocused()
+    await expect(page.locator('#emailme-error')).toHaveText('Enter your work email.')
+    await form.getByLabel('Work email').fill('ana@example.com')
+    await form.getByRole('button', { name: 'Email me the list' }).click()
+    await expect(page.getByRole('status').filter({ hasText: 'nothing was sent' })).toContainText('ana@example.com')
+  })
+
+  test('analytics: the journey emits the tracking contract, with attribution intact and no PII', async ({ page, context }) => {
+    // outbound destinations are fictional; answer them locally so the popup URL can be checked
+    await context.route(/\.example\//, (r) => r.fulfill({ status: 200, body: 'vendor' }))
+    const events = async () => page.evaluate(() => ((window as unknown as { dataLayer?: Record<string, unknown>[] }).dataLayer ?? []).map((e) => ({ ...e })))
+    const names = async () => (await events()).map((e) => e.event)
+
+    await page.goto('/?compare=northlane')
+    await expect.poll(names).toContain('comparison_page_viewed')
+    expect((await events())[0]).toMatchObject({ event: 'comparison_page_viewed', from_shared_link: true, selected_ids: ['northlane'], schema_version: 1 })
+
+    await pick(page, 'Taskara').check()
+    await tray(page).getByRole('link', { name: /Compare 2/ }).click()
+    await page.getByRole('radio', { name: /Complete matrix/ }).check()
+    await page.getByLabel('Team size').fill('25')
+    await expect.poll(names, { timeout: 4000 }).toContain('team_size_changed')
+
+    const popupPromise = page.waitForEvent('popup')
+    await page.locator('.verdict').getByRole('link', { name: /^Visit / }).click()
+    const popup = await popupPromise
+    expect(popup.url()).toMatch(/^https:\/\/\w+\.example\/\?utm_source=prodcom&utm_medium=compare&utm_content=verdict$/)
+    await popup.close()
+
+    await tray(page).getByRole('button', { name: /Remove Taskara/ }).click()
+    await page.locator('.emailme-form').getByLabel('Work email').fill('ana@example.com')
+    await page.locator('.emailme-form').getByRole('button', { name: 'Email me the list' }).click()
+
+    const all = await events()
+    const byName = (n: string) => all.filter((e) => e.event === n)
+    expect(byName('product_selected')[0]).toMatchObject({ product_id: 'taskara', slot: 2, source: 'ledger' })
+    expect(byName('comparison_started').map((e) => e.trigger)).toContain('tray')
+    expect(byName('comparison_view_changed')[0]).toMatchObject({ from: 'key', to: 'all', trigger: 'control' })
+    expect(byName('team_size_changed')).toHaveLength(1) // typing "25" settles into one event
+    expect(byName('team_size_changed')[0]).toMatchObject({ from: 10, to: 25 })
+    const cta = byName('product_cta_clicked')
+    expect(cta).toHaveLength(1)
+    expect(cta[0]).toMatchObject({ placement: 'verdict', destination_host: `${cta[0].product_id}.example`, comparison_view: 'all', team_size: 25 })
+    expect(cta[0].winner_id).toBe(cta[0].product_id)
+    expect(byName('product_deselected')[0]).toMatchObject({ product_id: 'taskara', source: 'tray' })
+    expect(byName('email_capture_submitted')[0]).toMatchObject({ alerts_opt_in: false })
+    // every event shares one page view id, and no event carries the email address
+    expect(new Set(all.map((e) => e.page_view_id)).size).toBe(1)
+    expect(JSON.stringify(all)).not.toContain('@')
   })
 
   test('content exists without JavaScript', async ({ browser }) => {
@@ -188,11 +276,28 @@ test('320px: select, hit the limit, and read the verdict', async ({ page }) => {
   await expect(pick(page, 'Mondray')).toBeFocused()
   await expect(page.locator('.stacks')).toBeVisible()
   await expect(page.locator('.stack-key li[data-best]')).toHaveCount(1)
+  // phones get the same three levels; key differences hold no identical rows
+  await expect(page.getByRole('radio', { name: /Key differences/ })).toBeChecked()
+  await expect(page.locator('.stacks .srow[data-status="same"]')).toHaveCount(0)
+  await expect(page.locator('.stacks .srow .row-flag').first()).toBeVisible()
   // rows identical for every pick are stated once, not repeated per product
+  await page.getByRole('radio', { name: /Complete matrix/ }).check()
   await expect(page.locator('.stacks .srow[data-status="same"] .srow-same').first()).toContainText('Same for all 4')
-  // the behind view works on phones and every visible row is flagged
-  await page.getByRole('radio', { name: /is behind/ }).check()
-  const stackRows = page.locator('.stacks .srow')
-  await expect(stackRows.first()).toBeVisible()
-  await expect(page.locator('.stacks .srow .row-flag')).toHaveCount(await stackRows.count())
+  // the section index replaces the select that navigated on arrow keys (WCAG 3.2.2)
+  await expect(page.locator('.stacks select')).toHaveCount(0)
+  await page.getByRole('navigation', { name: 'Comparison sections' }).getByRole('link', { name: /Platforms/ }).click()
+  await expect(page.locator('#s-platforms')).toBeFocused()
+})
+
+test('400% zoom equivalent: the tray never covers a focused checkbox', async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 256 })
+  await page.goto('/?compare=northlane,mondray')
+  const box = pick(page, 'Taskara')
+  await box.focus()
+  const covered = await page.evaluate(() => {
+    const el = document.activeElement!.getBoundingClientRect()
+    const tray = document.querySelector('.tray')!.getBoundingClientRect()
+    return el.bottom > tray.top && el.top < tray.bottom && tray.top < innerHeight
+  })
+  expect(covered).toBe(false)
 })

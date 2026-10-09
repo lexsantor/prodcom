@@ -4,7 +4,7 @@ project_state: greenfield
 register: hybrid
 genre: modern-minimal
 dials: { variance: 5, motion_intensity: 2, visual_density: 7 }
-last_updated: 2026-10-02
+last_updated: 2026-10-09
 ---
 
 # Prodcom — design context
@@ -119,6 +119,28 @@ Alternatives rejected:
 
 Design anchors: ledger, tray, verdict panel, butter winner column with "Best overall" label, grouped matrix with sticky header, attribute-first phone stacks, Method section: all kept. The view control takes over the role of the differences switch.
 
+### Iteration 3 (2026-10-09): decision-support audit and refactor
+
+Classification: page-scope REDESIGN on an existing project; register/genre/dials reused (hybrid, modern-minimal, 5/2/7). Brief: audit and refactor table → selection → tray → head-to-head → return, preserving brand, data, behaviour and commercial tracking (U-3).
+
+Audit evidence (two fresh-context auditors in Chromium, 2026-10-09; before-shots in the session scratchpad): tray covered 100% of focused controls at 320×180 (WCAG 2.4.11); focus fell to body after Clear all / top three / Add (2.4.3); Back after "Compare" left the site and the head-to-head had no way back; the head-to-head defaulted to 51 rows (768 px page 15,665 px); matrix emphasis inverted (butter fill on the winner's whole column, real row-best only a chip, a rust sentence on most rows); ledger columns mis-proportioned (rows 105–150 px, values on 2–3 lines); phone "Jump to" select navigated on arrow keys (3.2.2); Visit/Remove inside matrix column headers; teal used on the email panel.
+
+Problem profile: unchanged from iteration 2, plus a commercial exit (Visit) that must stay prominent and attributed.
+
+Committed response:
+- Ledger: fixed column proportions (table-layout fixed); "Adoption and support" replaced by "Stands out / Watch out" (the product's first listed strength and limitation); learning curve and support moved to Details; coverage reads "11 of 15 · 4 limited"; column heads in ink at 85% width.
+- Head-to-head: three levels, "Key differences" (ranked rows where picks differ; default), "Essentials" (ESSENTIAL, 14 rows) and "Complete matrix", each counted (REF-037 still carried). The default change is a hypothesis to validate with an A/B test; nothing is removed and every count is visible. A section index (links with per-view counts) replaces the phone select and adds desktop section navigation. Visit/Remove moved to an actions row under the sticky header. The winner column is a soft tint; the row's best value is bold (REF-015: loud by exception). The behind flag is a dot plus "X leads", with the full sentence for screen readers. The verdict's "See where X is behind" lands on the first flagged row.
+- Return: "Change products" in the head-to-head head, and browser Back after "Compare N" (pushState), both return to the table and focus the first pick.
+- Tray: stops pinning on viewports ≤ 520 px tall.
+- Lower page: Related categories as a ruled list; the email panel uses ink (teal stays reserved for the user's picks) with an inline error and aria-invalid; explanatory sections at a 1104 px measure while ledger and matrix keep 1240.
+
+Design anchors: ledger, numbered slots and tray, butter winner header, verdict with linked trade-offs, grouped matrix with sticky header, attribute-first phone stacks, hatched coverage bars, width-axis headings: kept. Butter body fill: role taken over by bold row-best values (a soft tint stays as a frame). Phone "Jump to" select: replaced by the section index. Adoption column: replaced by Stands out / Watch out (the data stays in Details and the matrix).
+
+Rejected in this run:
+- Outline (quiet) Visit buttons in the ledger, proposed by the visual auditor to lighten the ink stripe: rejected under U-3/U-4 without measured evidence; recorded as an A/B candidate.
+- Accordions per group: still rejected (iteration 2 reason); the section index gives navigation without hiding rows.
+- Unknown/not-applicable states in the matrix: the dataset has no unknown values, so no state was invented (T-3); the Avail model stays 0/1/2.
+
 ## Constraints & Preserved Patterns
 
 - Stack (declared this run): Vite 8 + React 19 + TypeScript 7, plain CSS, Playwright for E2E, `node --test` for logic, static prerender (renderToString at build) so all content exists without JavaScript (A11Y-009). No backend; dataset local in `src/data/products.ts`.
@@ -127,8 +149,18 @@ Design anchors: ledger, tray, verdict panel, butter winner column with "Best ove
 - **D-5** decision:P4 · active · Preserved contracts: query parameters `compare` (comma list, ≤4, slot order) and `team` (1–500); anchors `#ledger`, `#compare`, `#method`, `#top`; section headings "All ten tools", "Head-to-head", "How the Prodcom score works"; checkbox accessible names "Compare <product>".
   src: inspect:src/App.tsx, 2026-10-02
 
-- **D-6** decision:P5 · active · Head-to-head view is shareable: `?view=behind|diff` (absent = Everything); additive to the D-5 contract, which is unchanged.
-  src: REDESIGN BUILD 2026-10-02 · deps: D-3, D-5
+- **D-7** decision:P5 · active · Head-to-head views are key (default), essential and all; shareable as `?view=essential|all` (absent = key); links with the retired `?view=behind|diff` open on key. Additive to D-5, which is unchanged.
+  src: REDESIGN DESIGN 2026-10-09 · deps: D-3, D-5, U-5
+- **D-8** decision:P4 · active · Commercial contract: every Visit link is `https://<id>.example/?utm_source=prodcom&utm_medium=compare&utm_content=<placement>` with placements `ledger`, `ledger-card`, `verdict`, `matrix`, `target=_blank`, `rel="sponsored noopener"` and `data-visit=<id>`; the email form fields are `email` and `alerts`.
+  src: inspect:src/components/Visit.tsx, 2026-10-09 · deps: U-3
+- **D-9** decision:P5 · active · Ledger row action hierarchy: checkbox (select) → Visit (solid ink, primary commercial exit) → Details (text control under the product, secondary); badges for free version, free trial and AI feature count; a "Stands out / Watch out" column from the first listed strength and limitation.
+  src: REDESIGN DESIGN 2026-10-09 · deps: U-4, T-3
+- **U-3** directive · active · Preserve commercial tracking, attribution and monetization behaviour; never claim conversion improvements without measured evidence.
+  src: user, 2026-10-09
+- **U-4** directive · active · The row CTA is "Visit" with an external-link icon; "Details" stays visible as a secondary action; show "Free Trial" and "Free Version" badges and AI capabilities; below the comparison, "Related Categories" and then a form to receive the list by email.
+  src: user, 2026-10-09
+- **U-5** directive · active · Offer three head-to-head presentation levels (key differences, essential attributes, complete matrix) and decide the default from evidence; do not hide comparison information on mobile without an accessible alternative.
+  src: user, 2026-10-09
 
 ## Known Exceptions
 
@@ -166,8 +198,25 @@ None.
   Corrections: rank added to setup time (new demo field `setupDays`), seat limits, desktop and mobile apps; flag now reads "Northlane behind Taskara" (names every pick at the top rank); score areas marked `derived`, flagged in Everything but outside the behind count and view; truthful empty note ("not behind on any ranked row here; n other differences are in Everything"); `?view=behind|diff` added to the URL (absent for Everything); view option switches without a color transition; "Same for both" for 2 picks; evidence links focus the exact row (cost, learning curve, rating, support channels) and fall back to the group. Not adopted: evidence links for the winner's own "leads on" claims (the group standing lines already state where it leads); restoring the absolute "Most complete" line when a winner exists (the standing line supersedes it; it remains when there is no winner).
 - 2026-10-02 · gen 2 · **Level 1 re-run, formed after Level 2 (not independent of it):** Genericness 4, Hierarchy 4, Distinctiveness declared repetition, Craft 4, Accessibility 4, Technical 4. Behind counts after the fix: 6 / 8 / 17 rows for the 2 / 3 / 4-pick sets tested (of 50). Head-to-head height in the behind view: 1440 with 2 picks 2,060 px (Everything 4,373); 375 with 2 picks 3,191 (8,604); 768 with 3 picks 3,701 (9,930); 320 with 4 picks 6,861 (14,348). Residual: a 4-pick behind view is still long, because "behind any pick" is a wide net.
 
+- 2026-10-09 · gen 3 (iteration 3, page-scope REDESIGN of ledger, tray, head-to-head and lower page) · macrostructure, typography pairing, color-anchor, density band and motion tier unchanged by design: the brief says to preserve Prodcom's brand identity (P2), so the repetition is declared, not a redirect signal.
+- 2026-10-09 · gen 3 · **CRITIQUE Level 1 (pre-dispatch, recorded before the Level 2 brief was written)** on the working tree (baseline: commit a0d2595 plus the uncommitted Visit/badges/related/email turn):
+  1. Genericness 4/5. The skeleton still derives from T-2; the strengths column, row-best emphasis and winner-relative flags are product-derived. Finding: Related categories and the email capture are conventional lower-page patterns; their reason is U-4, not the problem profile, and the links target routes that do not exist yet. Structural test still passes.
+  2. Hierarchy 4/5. Matrix: the row's best value now carries the emphasis and the winner column frames it. Finding: the ledger's solid Visit column remains the heaviest vertical stripe (kept under U-3/U-4). Finding: ledger rows still vary 105–152 px at 1440 because badges and the strength/limitation text wrap.
+  3. Distinctiveness: declared repetition (entry above).
+  4. Craft 4/5. Found and fixed in this run: truncated "Compare" column head, split "74 … / 100" matrix score, a scroll container whose sr-only children widened the page to 1,579 px at 320, an E2E assertion that was vacuous. Finding: the "AI ·2" badge is terse without a legend.
+  5. Accessibility: A11Y-001 pass (new pairs from tokens: ink-2 flag text on paper 7.44:1, on best-soft about 7.2:1; warn error text on paper 6.96:1; paper on ink buttons 15.8:1); A11Y-002 pass (focus no longer lost after Clear all / top three / Add; Back and Change products land on the first pick; section index links focus their group; E2E); A11Y-003 pass (new scrolls honour reduced motion; no new animation); A11Y-004 pass (glyphs aria-hidden; flags and strength/limitation carry sr-only labels; `::before` glyphs use empty alt text); A11Y-009 unchanged (ledger prerendered; head-to-head needs JS); A11Y-010 pass (overflow E2E at 320–1920 with 4 picks and the full tray); A11Y-011 pass (behind = dot + text; best = bold + text tag; selection unchanged); A11Y-012 n/a. WCAG 2.4.11 at 320×256: pass (new E2E); 3.2.2: the navigating select is gone.
+  6. Technical 4/5. 16 E2E (2 new, 4 rewritten), 10 unit, typecheck and build pass. Head-to-head height with 3 picks: 768 px 7,502 (was 10,480); 375 px 8,271 (was 11,436); 1440 page 6,909.
+
+- 2026-10-09 · gen 3 · **CRITIQUE Level 2** (fresh isolated `lexia-design:visual-critic`; rubric extracted from `critique-protocol.md` in the brief-writing step and asserted as verbatim substrings; `.design/` excluded from access; no Level 1 result in the brief). Scores: Genericness 4, Hierarchy 3, Distinctiveness 4 (subjective; declared repetition accepted), Craft 3, Accessibility 4, Technical 4. Structural test: passes; all three committed-direction carriers and the recorded anchor takeovers observed. Verdict "ship with fixes".
+  Synthesis against the pre-dispatch Level 1: **disagreement on Hierarchy (L1 4, L2 3) and Craft (L1 4, L2 3).**
+  - Hierarchy: L2's high finding is the ledger's solid Visit stripe outranking selection, inconsistent with REF-015 emphasis by exception. The first visual auditor said the same. **Not applied:** demoting the revenue CTA conflicts with U-3/U-4 without measured evidence; reported to the user as an A/B test (solid vs outline ledger Visit, metric VCVR and gross profit per session).
+  - Craft: two of L2's items ("Compa" clipped header, split "74 … / 100") came from screenshots taken before fixes in this run; re-measured live: header 76/76 px with no overflow, score rendered as one "74 / 100" block. Adopted: tail sections now keep the page's left edge (inner 1040 px measure instead of a narrower wrap). Tried and reverted: pinning Details to the first badge line made two-badge rows taller. Residual: ledger rows 105–152 px at 1440 (3-badge rows with wrapped names). Declared: the AI badge's violet hue (a separate signal category, text-labelled); the behind dot stays warn-coloured because the winner losing a row is the warning it marks.
+- 2026-10-09 · gen 3 · **Level 1 re-run, formed after Level 2 (not independent of it):** Genericness 4, Hierarchy 3 (Visit stripe unresolved pending the A/B test), Distinctiveness declared repetition, Craft 4, Accessibility 4, Technical 4.
+
 ## Accessibility Notes
 
+- **C-3** check · active · On viewports ≤ 520 px tall (200–400% zoom) the tray does not pin, so no focused control is covered (WCAG 2.4.11); E2E at 320×256.
+  src: REDESIGN BUILD 2026-10-09 · deps: C-1
 - **C-1** check · active · Every interaction in the ledger, tray and head-to-head is operable by keyboard alone with visible `:focus-visible`; sticky headers and the pinned tray never hide the focused element (scroll-padding).
   src: BUILD DESIGN 2026-10-02 · deps: T-4
 - Selection controls are native checkboxes with accessible names ("Compare Northlane"); limit and replace messages announced through a polite live region; winner announced in text.
@@ -183,4 +232,5 @@ None.
 
 ## Retired
 
-None.
+- **D-6** decision:P5 · retired 2026-10-09 · Head-to-head view is shareable: `?view=behind|diff` (absent = Everything); additive to the D-5 contract, which is unchanged.
+  reason: the user asked for three presentation levels with an evidence-based default (U-5); behind/diff/everything replaced · superseded-by: D-7

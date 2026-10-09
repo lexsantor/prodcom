@@ -52,6 +52,7 @@ test('cost follows seat minimums, flat plans and seat caps', () => {
   assert.equal(north.total, 42) // 3-seat minimum × $14
   const taskara = costFor(PRODUCT_BY_ID.get('taskara')!, 20)
   assert.equal(taskara.total, 49 + 5 * 4)
+  assert.equal(taskara.arithmetic, '$49 for 15 + 5 extra × $4')
   assert.equal(costFor(PRODUCT_BY_ID.get('quillo')!, 6).eligible, false)
 })
 
@@ -72,4 +73,26 @@ test('a product that cannot serve the team is excluded from the verdict', () => 
   const v = verdictFor(['quillo', 'orbitask'], scoreCatalog(10))
   assert.equal(v.winner, null)
   assert.deepEqual(v.excluded.map((s) => s.product.id), ['quillo'])
+})
+
+test('analytics payloads carry the envelope and page context, and drop unknown products', async () => {
+  const { buildPayload, setTrackContext, SCHEMA_VERSION } = await import('./track.ts')
+  setTrackContext({ team_size: 25, selected_ids: ['northlane', 'taskara'], winner_id: 'northlane', view: 'key' })
+  const p = buildPayload({ event: 'product_cta_clicked', product_id: 'northlane', placement: 'verdict', destination_host: 'northlane.example' }, 1_000)
+  assert.ok(p)
+  assert.equal(p.schema_version, SCHEMA_VERSION)
+  assert.equal(p.team_size, 25)
+  assert.equal(p.selected_count, 2)
+  assert.equal(p.winner_id, 'northlane')
+  assert.equal(p.comparison_view, 'key')
+  assert.match(p.page_view_id, /\w{8,}/)
+  assert.equal(buildPayload({ event: 'product_selected', product_id: 'not-a-product', slot: 1, source: 'ledger' }, 2_000), null)
+})
+
+test('analytics drops an identical event repeated within the dedupe window only', async () => {
+  const { buildPayload } = await import('./track.ts')
+  const e = { event: 'comparison_shared', method: 'copy_link' } as const
+  assert.ok(buildPayload(e, 10_000))
+  assert.equal(buildPayload(e, 10_500), null)
+  assert.ok(buildPayload(e, 11_000))
 })

@@ -1,6 +1,7 @@
 import { PRODUCT_BY_ID } from '../data/products.ts'
 import { MAX_SELECTED } from '../lib/selection.ts'
 import { Mark } from './Mark.tsx'
+import { track } from '../lib/track.ts'
 
 /** Scroll to the head-to-head and move focus to its heading. */
 export function jumpToCompare(e: React.MouseEvent) {
@@ -8,6 +9,10 @@ export function jumpToCompare(e: React.MouseEvent) {
   const heading = document.getElementById('compare-title')
   if (!target || !heading) return
   e.preventDefault()
+  track({ event: 'comparison_started', trigger: 'tray' })
+  if (window.location.hash !== '#compare') {
+    window.history.pushState(null, '', `${window.location.pathname}${window.location.search}#compare`)
+  }
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   target.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
   heading.focus({ preventScroll: true })

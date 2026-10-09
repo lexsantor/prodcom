@@ -1,6 +1,7 @@
 import { adminCoverage, coreCoverage, usd, AREAS, type Area, type Scored, type Verdict as V } from '../lib/score.ts'
 import { focusVisible } from '../lib/focus.ts'
 import { Mark } from './Mark.tsx'
+import { Visit } from './Visit.tsx'
 
 const CURVE = { gentle: 'gentle', moderate: 'moderate', steep: 'steep' } as const
 
@@ -123,6 +124,12 @@ export function Verdict({ verdict, team, behindCount, onShowBehind }: VerdictPro
         {winnerLeads.length > 0
           ? `Among your picks it leads on ${join(winnerLeads.map((a) => AREA_PHRASE[a]))}.`
           : 'It leads no single area, but has the best balance across all six.'}
+      </p>
+      <p className="verdict-cta">
+        <Visit product={winner.product} placement="verdict" label={`Visit ${winner.product.name}`} />
+        {winner.product.pricing.trialDays
+          ? <span className="muted small">{winner.product.pricing.trialDays}-day free trial</span>
+          : winner.product.pricing.freePlan ? <span className="muted small">Free version available</span> : null}
       </p>
 
       <h4 className="verdict-sub">Where the others are stronger</h4>

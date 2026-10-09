@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { PRODUCT_BY_ID } from './data/products.ts'
 import { TEAM_DEFAULT, scoreCatalog } from './lib/score.ts'
 import { MAX_SELECTED, parseCompare, parseTeam, replace, toggle } from './lib/selection.ts'
@@ -6,6 +6,10 @@ import { Ledger } from './components/Ledger.tsx'
 import { HeadToHead } from './components/HeadToHead.tsx'
 import { Method } from './components/Method.tsx'
 import { Logo } from './components/Logo.tsx'
+import { focusLedger } from './lib/focus.ts'
+import { setTrackContext, track } from './lib/track.ts'
+import { Related } from './components/Related.tsx'
+import { EmailList } from './components/EmailList.tsx'
 
 const nameOf = (id: string) => PRODUCT_BY_ID.get(id)?.name ?? id
 
@@ -34,10 +38,20 @@ export function App() {
   // Prerendered HTML is the default state; the URL is applied after hydration.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search)
-    setIds(parseCompare(q.get('compare')))
-    setTeam(parseTeam(q.get('team')))
+    const restoredIds = parseCompare(q.get('compare'))
+    const restoredTeam = parseTeam(q.get('team'))
+    setIds(restoredIds)
+    setTeam(restoredTeam)
     setRestored(true)
+    setTrackContext({ selected_ids: restoredIds, team_size: restoredTeam })
+    track({ event: 'comparison_page_viewed', from_shared_link: restoredIds.length > 0 })
   }, [])
+
+  useEffect(() => setTrackContext({ selected_ids: ids, team_size: team }), [ids, team])
+
+  // One team_size_changed per adjustment: typing "25" or holding the stepper settles into one event.
+  const teamBurst = useRef<{ from: number; timer?: number }>({ from: TEAM_DEFAULT })
+  useEffect(() => () => window.clearTimeout(teamBurst.current.timer), [])
 
   useEffect(() => {
     if (!restored) return
@@ -50,23 +64,61 @@ export function App() {
     window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
   }, [ids, team, restored])
 
+  // Back after "Compare N" returns to the table and the first pick, not off the site.
+  useEffect(() => {
+    let wasAtCompare = window.location.hash === '#compare'
+
+    function onClick(event: MouseEvent) {
+      const target = event.target
+      if (target instanceof Element && target.closest('a[href="#compare"]')) {
+        wasAtCompare = true
+      }
+    }
+
+    function onPopState() {
+      if (window.location.hash === '#compare') {
+        wasAtCompare = true
+        return
+      }
+      if (!wasAtCompare) return
+      wasAtCompare = false
+      focusLedger()
+    }
+
+    window.addEventListener('click', onClick, true)
+    window.addEventListener('popstate', onPopState)
+    return () => {
+      window.removeEventListener('click', onClick, true)
+      window.removeEventListener('popstate', onPopState)
+    }
+  }, [])
+
   const say = (text: string) => setAnnouncement(text)
 
   function onToggle(id: string) {
     const result = toggle(ids, id)
     if (result.kind === 'full') {
+      track({ event: 'comparison_full_blocked', product_id: id })
       setBlocked(id)
       focusById('tray-full')
       return
     }
     setBlocked(null)
     setIds(result.ids)
+    setTrackContext({ selected_ids: result.ids })
+    track(result.kind === 'added'
+      ? { event: 'product_selected', product_id: id, slot: result.ids.indexOf(id) + 1, source: 'ledger' }
+      : { event: 'product_deselected', product_id: id, source: 'ledger' })
     say(`${nameOf(id)} ${result.kind === 'added' ? 'added to' : 'removed from'} the comparison. ${result.ids.length} of ${MAX_SELECTED} selected.`)
   }
 
   function onReplace(outgoing: string) {
     if (!blocked) return
-    setIds(replace(ids, outgoing, blocked))
+    const next = replace(ids, outgoing, blocked)
+    setIds(next)
+    setTrackContext({ selected_ids: next })
+    track({ event: 'product_deselected', product_id: outgoing, source: 'replace' })
+    track({ event: 'product_selected', product_id: blocked, slot: next.indexOf(blocked) + 1, source: 'replace' })
     say(`${nameOf(outgoing)} replaced by ${nameOf(blocked)}. ${ids.length} of ${MAX_SELECTED} selected.`)
     focusPick(blocked)
     setBlocked(null)
@@ -80,19 +132,36 @@ export function App() {
   function onRemove(id: string, focusTarget: string) {
     const next = ids.filter((x) => x !== id)
     setIds(next)
+    setTrackContext({ selected_ids: next })
+    track({ event: 'product_deselected', product_id: id, source: focusTarget === 'tray-count' ? 'tray' : 'matrix' })
     setBlocked(null)
     say(`${nameOf(id)} removed from the comparison. ${next.length} of ${MAX_SELECTED} selected.`)
     focusById(focusTarget)
   }
 
-  function onSelect(next: string[], message: string) {
-    setIds(next.slice(0, MAX_SELECTED))
+  function onSelect(next: string[], message: string, focusTarget?: string, source: 'clear' | 'suggestion' | 'top-three' = 'clear') {
+    const capped = next.slice(0, MAX_SELECTED)
+    setIds(capped)
+    setTrackContext({ selected_ids: capped })
+    for (const id of ids.filter((x) => !capped.includes(x))) track({ event: 'product_deselected', product_id: id, source: 'clear' })
+    if (source !== 'clear') {
+      for (const id of capped.filter((x) => !ids.includes(x))) track({ event: 'product_selected', product_id: id, slot: capped.indexOf(id) + 1, source })
+    }
     setBlocked(null)
     say(message)
+    if (focusTarget) focusById(focusTarget)
   }
 
   function onTeam(n: number) {
+    const burst = teamBurst.current
+    if (burst.timer === undefined) burst.from = team
+    window.clearTimeout(burst.timer)
+    burst.timer = window.setTimeout(() => {
+      burst.timer = undefined
+      if (burst.from !== n) track({ event: 'team_size_changed', from: burst.from, to: n })
+    }, 1000)
     setTeam(n)
+    setTrackContext({ team_size: n })
     say(`Prices and scores updated for a team of ${n}.`)
   }
 
@@ -107,7 +176,7 @@ export function App() {
               <span aria-hidden="true">prodcom</span>
             </a>
             <p className="demo-flag">
-              Demo: every product and figure here is fictional. <a href="#method">About the data</a>
+              Demo: every product and figure here is fictional. Visit links are affiliate links; they never change a score. <a href="#method">About the data</a>
             </p>
           </div>
           <h1>Compare project-management tools side by side, priced for your team.</h1>
@@ -134,7 +203,7 @@ export function App() {
           onReplace={onReplace}
           onKeep={onKeep}
           onRemove={onRemove}
-          onClear={() => onSelect([], 'Comparison cleared. 0 of 4 selected.')}
+          onClear={() => onSelect([], 'Comparison cleared. 0 of 4 selected.', 'tray-count')}
         />
         <HeadToHead
           scores={scores}
@@ -144,6 +213,8 @@ export function App() {
           onSelect={onSelect}
           onAnnounce={say}
         />
+        <Related />
+        <EmailList ids={ids} team={team} />
         <Method />
       </main>
 

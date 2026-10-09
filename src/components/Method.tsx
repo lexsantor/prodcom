@@ -28,6 +28,10 @@ export function Method() {
             The score ranks overall balance. It does not know your workflow, which is why the head-to-head lists where each
             of the other products is stronger, and shows every attribute it is built from.
           </p>
+          <p>
+            <strong>How Prodcom is paid.</strong> Visit links are affiliate links: Prodcom may earn a commission if you sign up.
+            Commission is not an input to the score, and every product is scored and listed the same way whether or not it pays.
+          </p>
           <p className="method-data">
             <strong>About the data.</strong> All ten products, and every price, rating, review count and feature, are fictional,
             invented for this demonstration. No rating or review comes from a real customer.

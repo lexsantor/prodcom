@@ -17,6 +17,14 @@ export interface Row {
   derived?: boolean
 }
 
+/** The essentials view: the rows most buyers decide on, as `group:row` keys. */
+export const ESSENTIAL = new Set([
+  'price:cost', 'price:free', 'price:trial', 'price:seats',
+  'score:overall', 'fit:rating', 'fit:strengths', 'fit:limitations',
+  'automation:automations', 'automation:ai', 'admin:sso',
+  'support:response', 'support:curve', 'platforms:mobile',
+])
+
 export interface Group {
   key: string
   title: string
@@ -72,7 +80,7 @@ export function buildGroups(team: number): Group[] {
           rank: (s) => -s.cost.totalMonthlyBilling,
           tag: 'Lowest',
         },
-        plain('free', 'Free plan', (s) => s.product.pricing.freePlan ?? 'None', (s) => (s.product.pricing.freePlan ? 1 : 0)),
+        plain('free', 'Free version', (s) => s.product.pricing.freePlan ?? 'None', (s) => (s.product.pricing.freePlan ? 1 : 0)),
         plain('trial', 'Free trial', (s) => (s.product.pricing.trialDays ? `${s.product.pricing.trialDays} days` : 'None'), (s) => s.product.pricing.trialDays ?? 0),
         plain('seats', 'Seat limits', (s) => {
           const { minSeats, maxSeats } = s.product.pricing
@@ -140,6 +148,14 @@ export function buildGroups(team: number): Group[] {
           render: (s) => <span className="num">{s.product.integrations}</span>,
           text: (s) => String(s.product.integrations),
           rank: (s) => s.product.integrations,
+          tag: 'Most',
+        },
+        {
+          key: 'ai',
+          label: 'AI capabilities',
+          render: (s) => (s.product.ai.length ? list(s.product.ai) : <span className="muted">None</span>),
+          text: (s) => s.product.ai.join() || 'None',
+          rank: (s) => s.product.ai.length,
           tag: 'Most',
         },
       ],

@@ -1,61 +1,93 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { MAX_SELECTED } from '../lib/selection.ts'
 import { compareScored, nearestBy, usd, verdictFor, type Scored } from '../lib/score.ts'
-import { focusVisible } from '../lib/focus.ts'
+import { focusLedger, focusVisible } from '../lib/focus.ts'
+import { setTrackContext, track } from '../lib/track.ts'
 import { Mark } from './Mark.tsx'
+import { Visit } from './Visit.tsx'
 import { Verdict } from './Verdict.tsx'
-import { aheadOfWinner, bestIn, buildGroups, groupStanding, statusOf, type Group, type Row, type RowStatus } from './rows.tsx'
+import { ESSENTIAL, aheadOfWinner, bestIn, buildGroups, groupStanding, statusOf, type Group, type Row, type RowStatus } from './rows.tsx'
 
 interface Props {
   scores: Map<string, Scored>
   ids: string[]
   team: number
   onRemove: (id: string, focusTarget: string) => void
-  onSelect: (ids: string[], message: string) => void
+  onSelect: (ids: string[], message: string, focusTarget?: string, source?: 'suggestion' | 'top-three') => void
   onAnnounce: (text: string) => void
 }
 
 export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }: Props) {
-  const [chosenView, setView] = useState<View>('all')
-  // the chosen view is part of a shared link (?view=behind|diff); applied after hydration
+  const [view, setView] = useState<View>('key')
+  // the chosen view is part of a shared link (?view=essential|all); applied after hydration.
+  // Links from before the three-level views (?view=behind|diff) open on key differences.
   useEffect(() => {
     const v = new URLSearchParams(window.location.search).get('view')
-    if (v === 'behind' || v === 'diff') setView(v)
+    if (v === 'essential' || v === 'all') setView(v)
   }, [])
   useEffect(() => {
     const q = new URLSearchParams(window.location.search)
-    if (chosenView === 'all') q.delete('view')
-    else q.set('view', chosenView)
+    if (view === 'key') q.delete('view')
+    else q.set('view', view)
     const query = q.toString().replace(/%2C/g, ',')
     window.history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`)
-  }, [chosenView])
+  }, [view])
   const [copied, setCopied] = useState(false)
   const picked = ids.map((id) => scores.get(id)).filter((s): s is Scored => !!s)
   const verdict = useMemo(() => verdictFor(ids, scores), [ids, scores])
   const groups = useMemo(() => buildGroups(team), [team])
   const winner = verdict.winner ?? undefined
   const winnerId = winner?.product.id
-  // "behind" only exists while there is a winner
-  const view: View = chosenView === 'behind' && !winner ? 'all' : chosenView
-
-  const classified = groups.map((g) => ({ g, rows: g.rows.map((row) => ({ row, status: statusOf(row, picked, winnerId) })) }))
+  const classified = groups.map((g) => ({ g, rows: g.rows.map((row): Classified => ({ row, status: statusOf(row, picked, winnerId), gkey: g.key })) }))
   const all = classified.flatMap((c) => c.rows)
   const counts: Record<View, number> = {
-    behind: all.filter((r) => inView(r.status, 'behind', r.row)).length,
-    diff: all.filter((r) => r.status !== 'same').length,
+    key: all.filter((r) => inView(r, 'key')).length,
+    essential: all.filter((r) => inView(r, 'essential')).length,
     all: all.length,
   }
-  const visible = classified.map((c) => ({ g: c.g, rows: c.rows.filter((r) => inView(r.status, view, r.row)) }))
+  const behindCount = all.filter((r) => r.status === 'behind' && !r.row.derived).length
+  const visible = classified
+    .map((c) => ({ g: c.g, rows: c.rows.filter((r) => inView(r, view)) }))
+    .filter((c) => view !== 'essential' || c.rows.length > 0)
 
+  useEffect(() => setTrackContext({ winner_id: winnerId ?? null, view: picked.length >= 2 ? view : null }), [winnerId, view, picked.length])
+
+  // comparison_started (scroll): the head-to-head comes into view with 2+ picks, once per set of picks
+  const sectionRef = useRef<HTMLElement>(null)
+  const seenSets = useRef(new Set<string>())
+  const setKey = [...ids].sort().join(',')
+  useEffect(() => {
+    const el = sectionRef.current
+    if (!el || ids.length < 2 || seenSets.current.has(setKey) || typeof IntersectionObserver === 'undefined') return
+    const io = new IntersectionObserver(([entry]) => {
+      if (!entry.isIntersecting || seenSets.current.has(setKey)) return
+      seenSets.current.add(setKey)
+      track({ event: 'comparison_started', trigger: 'scroll' })
+      io.disconnect()
+    }, { threshold: 0.15 })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [setKey, ids.length])
+
+  function chooseView(v: View) {
+    track({ event: 'comparison_view_changed', from: view, to: v, rows: counts[v], trigger: 'control' })
+    setView(v)
+    onAnnounce(`Showing ${VIEW_LABEL[v].toLowerCase()}: ${counts[v]} rows.`)
+  }
+
+  /** From the verdict: key differences include every row where the winner is behind; land on the first one. */
   function showBehind() {
-    setView('behind')
-    onAnnounce(`Showing the ${counts.behind} rows where ${winner?.product.name} is behind.`)
-    focusVisible('view-control')
+    if (view !== 'key') track({ event: 'comparison_view_changed', from: view, to: 'key', rows: counts.key, trigger: 'verdict' })
+    setView('key')
+    onAnnounce(`Showing key differences. ${winner?.product.name} is behind on ${behindCount} of them, each flagged.`)
+    const first = classified.flatMap((c) => c.rows.filter((r) => r.status === 'behind' && !r.row.derived).map((r) => `${c.g.key}-${r.row.key}`))[0]
+    focusVisible(...(first ? [`m-${first}`, `s-${first}`] : []), 'view-control')
   }
 
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(window.location.href)
+      track({ event: 'comparison_shared', method: 'copy_link' })
       setCopied(true)
       onAnnounce('Link to this comparison copied.')
       window.setTimeout(() => setCopied(false), 2500)
@@ -65,11 +97,19 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
   }
 
   return (
-    <section className="h2h" id="compare" aria-labelledby="compare-title">
+    <section className="h2h" id="compare" aria-labelledby="compare-title" ref={sectionRef}>
       <div className="wrap">
         <div className="h2h-head">
-          <h2 id="compare-title" tabIndex={-1}>Head-to-head</h2>
-          <p className="section-sub">Only the products you ticked, priced for a team of {team}.</p>
+          <div>
+            <h2 id="compare-title" tabIndex={-1}>Head-to-head</h2>
+            <p className="section-sub">Only the products you ticked, priced for a team of {team}.</p>
+          </div>
+          {picked.length > 0 && (
+            <a className="btn btn-quiet back-link" href="#ledger" onClick={(e) => { e.preventDefault(); focusLedger() }}>
+              <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false"><path d="M7 12V3M3 6.5l4-4 4 4" fill="none" stroke="currentColor" strokeWidth="1.75" /></svg>
+              Change products
+            </a>
+          )}
         </div>
 
         {picked.length === 0 && <EmptyState scores={scores} onSelect={onSelect} />}
@@ -77,16 +117,16 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
 
         {picked.length >= 2 && (
           <>
-            <Verdict verdict={verdict} team={team} behindCount={counts.behind} onShowBehind={showBehind} />
+            <Verdict verdict={verdict} team={team} behindCount={behindCount} onShowBehind={showBehind} />
 
             <div className="h2h-tools">
               <fieldset className="views" id="view-control" tabIndex={-1}>
                 <legend>Show rows</legend>
                 <div className="views-options">
-                  {VIEWS.filter((v) => v !== 'behind' || winner).map((v) => (
+                  {VIEWS.map((v) => (
                     <label key={v} className="view-opt">
-                      <input type="radio" name="h2h-view" value={v} checked={view === v} onChange={() => setView(v)} />
-                      <span className="view-name">{v === 'behind' ? `Where ${winner?.product.name} is behind` : VIEW_LABEL[v]}</span>
+                      <input type="radio" name="h2h-view" value={v} checked={view === v} onChange={() => chooseView(v)} />
+                      <span className="view-name">{VIEW_LABEL[v]}</span>
                       <span className="view-count">{counts[v]}<span className="sr-only"> rows</span></span>
                     </label>
                   ))}
@@ -97,8 +137,9 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
               </button>
             </div>
 
-            <MatrixTable picked={picked} groups={visible} winner={winner} view={view} team={team} onRemove={onRemove} />
-            <Stacks picked={picked} groups={visible} winner={winner} view={view} />
+            <SectionNav groups={visible} />
+            <MatrixTable picked={picked} groups={visible} winner={winner} team={team} onRemove={onRemove} />
+            <Stacks picked={picked} groups={visible} winner={winner} />
           </>
         )}
       </div>
@@ -106,34 +147,63 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
   )
 }
 
-type View = 'behind' | 'diff' | 'all'
-const VIEWS: View[] = ['behind', 'diff', 'all']
-const VIEW_LABEL: Record<View, string> = { behind: 'Where the winner is behind', diff: 'All differences', all: 'Everything' }
-/** Score areas summarise other rows, so the "behind" view leaves them out instead of counting the same point twice. */
-const inView = (status: RowStatus, view: View, row: Row) =>
-  view === 'all' || (view === 'diff' ? status !== 'same' : status === 'behind' && !row.derived)
+type View = 'key' | 'essential' | 'all'
+const VIEWS: View[] = ['key', 'essential', 'all']
+const VIEW_LABEL: Record<View, string> = { key: 'Key differences', essential: 'Essentials', all: 'Complete matrix' }
+type Classified = { row: Row; status: RowStatus; gkey: string }
+/**
+ * key: ranked rows where your picks differ (a better and a worse value exist). Score areas summarise other rows,
+ * so they stay out instead of counting the same point twice. essential: the curated ESSENTIAL rows. all: every row.
+ */
+function inView({ row, status, gkey }: Classified, view: View) {
+  if (view === 'all') return true
+  if (view === 'essential') return ESSENTIAL.has(`${gkey}:${row.key}`)
+  return status !== 'same' && !!row.rank && !row.derived
+}
 
-type Visible = { g: Group; rows: { row: Row; status: RowStatus }[] }[]
+type Visible = { g: Group; rows: Classified[] }[]
 
-/** Message for a group that has no rows in the current view; it never claims more than the ranking can show. */
-function emptyNote(view: View, g: Group, picked: Scored[], winner?: Scored) {
-  if (view !== 'behind') return 'Same for all your picks here'
-  if (g.key === 'score') return 'Score areas summarise the rows below; see Everything for them'
-  const unranked = g.rows.filter((r) => statusOf(r, picked, winner?.product.id) === 'differs').length
-  const base = `${winner?.product.name} is not behind on any ranked row here`
-  return unranked ? `${base}; ${unranked} other ${unranked === 1 ? 'difference is' : 'differences are'} in Everything` : base
+/** Message for a group with no rows in the key view; it never claims more than the ranking can show. */
+function emptyNote(g: Group, picked: Scored[]) {
+  if (g.key === 'score') return 'Score areas summarise the rows below; see the complete matrix for them'
+  const other = g.rows.filter((r) => statusOf(r, picked) !== 'same').length
+  if (!other) return 'Same for all your picks here'
+  return `No ranked differences; ${other} other ${other === 1 ? 'difference is' : 'differences are'} in the complete matrix`
 }
 
 const names = (list: Scored[]) =>
   list.length <= 1 ? list.map((s) => s.product.name).join('') : `${list.slice(0, -1).map((s) => s.product.name).join(', ')} and ${list.at(-1)!.product.name}`
 
-/** "Northlane behind Orbitask": says who beats the winner on this row. */
+/** Says who beats the winner on this row: visibly "Orbitask leads", in full for screen readers. */
 function BehindFlag({ winner, row, picked }: { winner: Scored; row: Row; picked: Scored[] }) {
-  return <span className="row-flag">{winner.product.name} behind {names(aheadOfWinner(row, picked, winner))}</span>
+  const leaders = aheadOfWinner(row, picked, winner)
+  return (
+    <span className="row-flag">
+      <span className="sr-only">{winner.product.name} behind {names(leaders)}</span>
+      <span aria-hidden="true"><span className="row-flag-mark" />{names(leaders)} {leaders.length > 1 ? 'lead' : 'leads'}</span>
+    </span>
+  )
 }
 
-function MatrixTable({ picked, groups, winner, view, team, onRemove }: {
-  picked: Scored[]; groups: Visible; winner?: Scored; view: View; team: number; onRemove: Props['onRemove']
+/** Section index with the row count each group holds in the current view. Plain links: no navigation on arrow keys. */
+function SectionNav({ groups }: { groups: Visible }) {
+  return (
+    <nav className="secnav" aria-label="Comparison sections">
+      <ul>
+        {groups.map(({ g, rows }) => (
+          <li key={g.key}>
+            <a href={`#m-${g.key}`} onClick={(e) => { e.preventDefault(); focusVisible(`m-${g.key}`, `s-${g.key}`) }}>
+              {g.title}<span className="secnav-n">{rows.length}<span className="sr-only"> rows</span></span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </nav>
+  )
+}
+
+function MatrixTable({ picked, groups, winner, team, onRemove }: {
+  picked: Scored[]; groups: Visible; winner?: Scored; team: number; onRemove: Props['onRemove']
 }) {
   const names = picked.map((s) => s.product.name).join(', ')
   const winnerId = winner?.product.id
@@ -154,16 +224,23 @@ function MatrixTable({ picked, groups, winner, view, team, onRemove }: {
                   {best && <span className="best-label"><BestGlyph />Best overall</span>}
                   {!s.cost.eligible && <span className="out-label">Can't serve {team}</span>}
                 </span>
-                <span className="m-head-name"><Mark product={s.product} size={22} />{s.product.name}</span>
-                <span className="m-head-meta">
-                  <span><span className="num">{s.overall}</span> / 100</span>
-                  <button type="button" className="btn btn-link small" onClick={() => onRemove(s.product.id, 'compare-title')}>
-                    Remove<span className="sr-only"> {s.product.name}</span>
-                  </button>
-                </span>
+                <span className="m-head-name"><Mark product={s.product} size={28} />{s.product.name}</span>
+                <span className="m-head-meta"><span className="num">{s.overall}</span> / 100</span>
               </th>
             )
           })}
+        </tr>
+        {/* Actions sit outside the header cells so each column header announces only the product. */}
+        <tr className="m-actions">
+          <td />
+          {picked.map((s) => (
+            <td key={s.product.id} data-best={s.product.id === winnerId || undefined}>
+              <Visit product={s.product} placement="matrix" variant={s.product.id === winnerId ? 'solid' : 'quiet'} />
+              <button type="button" className="btn btn-link small" onClick={() => onRemove(s.product.id, 'compare-title')}>
+                Remove<span className="sr-only"> {s.product.name}</span>
+              </button>
+            </td>
+          ))}
         </tr>
       </thead>
       {groups.map(({ g, rows }) => {
@@ -174,7 +251,7 @@ function MatrixTable({ picked, groups, winner, view, team, onRemove }: {
               <th scope="rowgroup" colSpan={picked.length + 1} id={`m-${g.key}`} tabIndex={-1}>
                 <span className="m-group-title">{g.title}</span>
                 {standing && <span className="m-group-leader">{standing}</span>}
-                {rows.length === 0 && <span className="m-group-empty">{emptyNote(view, g, picked, winner)}</span>}
+                {rows.length === 0 && <span className="m-group-empty">{emptyNote(g, picked)}</span>}
               </th>
             </tr>
             {rows.map(({ row: r, status }) => {
@@ -188,7 +265,7 @@ function MatrixTable({ picked, groups, winner, view, team, onRemove }: {
                     {status === 'same' && <span className="m-hint">{picked.length === 2 ? 'Same for both' : 'Same for all'}</span>}
                   </th>
                   {picked.map((s) => (
-                    <td key={s.product.id} data-best={s.product.id === winnerId || undefined}>
+                    <td key={s.product.id} data-best={s.product.id === winnerId || undefined} data-top={best.has(s.product.id) || undefined}>
                       <span className="val">{r.render(s)}</span>
                       {best.has(s.product.id) && <span className="row-best">{r.tag}</span>}
                     </td>
@@ -204,25 +281,10 @@ function MatrixTable({ picked, groups, winner, view, team, onRemove }: {
 }
 
 /** Narrow screens: attribute-first stacks keep every pick's value for one attribute together. */
-function Stacks({ picked, groups, winner, view }: { picked: Scored[]; groups: Visible; winner?: Scored; view: View }) {
+function Stacks({ picked, groups, winner }: { picked: Scored[]; groups: Visible; winner?: Scored }) {
   const winnerId = winner?.product.id
   return (
     <div className="stacks">
-      <label className="jump">
-        <span>Jump to</span>
-        <select
-          defaultValue=""
-          onChange={(e) => {
-            const target = document.getElementById(`s-${e.target.value}`)
-            target?.scrollIntoView({ block: 'start' })
-            target?.focus({ preventScroll: true })
-            e.target.value = ''
-          }}
-        >
-          <option value="" disabled>Choose a section</option>
-          {groups.map(({ g }) => <option key={g.key} value={g.key}>{g.title}</option>)}
-        </select>
-      </label>
       <ol className="stack-key" aria-label="Your picks">
         {picked.map((s, i) => (
           <li key={s.product.id} data-best={s.product.id === winnerId || undefined}>
@@ -239,7 +301,7 @@ function Stacks({ picked, groups, winner, view }: { picked: Scored[]; groups: Vi
           <section key={g.key} className="sgroup" aria-labelledby={`s-${g.key}`}>
             <h3 id={`s-${g.key}`} tabIndex={-1}>{g.title}</h3>
             {standing && <p className="m-group-leader">{standing}</p>}
-            {rows.length === 0 && <p className="m-group-empty">{emptyNote(view, g, picked, winner)}</p>}
+            {rows.length === 0 && <p className="m-group-empty">{emptyNote(g, picked)}</p>}
             {rows.map(({ row: r, status }) => {
               const best = bestIn(r, picked)
               const id = `s-${g.key}-${r.key}`
@@ -303,7 +365,7 @@ function EmptyState({ scores, onSelect }: { scores: Map<string, Scored>; onSelec
           <button
             type="button"
             className="btn btn-quiet"
-            onClick={() => onSelect(top.map((s) => s.product.id), `Added the top three by score: ${top.map((s) => s.product.name).join(', ')}.`)}
+            onClick={() => onSelect(top.map((s) => s.product.id), `Added the top three by score: ${top.map((s) => s.product.name).join(', ')}.`, 'compare-title', 'top-three')}
           >
             Try the top three by score
           </button>
@@ -335,7 +397,7 @@ function OneState({ only, scores, ids, team, onSelect }: {
             <button
               type="button"
               className="btn btn-quiet"
-              onClick={() => onSelect([...ids, s.product.id], `${s.product.name} added to the comparison. ${ids.length + 1} of 4 selected.`)}
+              onClick={() => onSelect([...ids, s.product.id], `${s.product.name} added to the comparison. ${ids.length + 1} of 4 selected.`, 'compare-title', 'suggestion')}
             >
               Add<span className="sr-only"> {s.product.name}</span>
             </button>

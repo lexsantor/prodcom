@@ -70,6 +70,8 @@ export interface Product {
   core: Record<CoreId, Avail>
   admin: Record<AdminId, Avail>
   integrations: number
+  /** AI features included in the paid plan; empty = none */
+  ai: readonly string[]
   automationRuns: string
   storage: string
   support: { tier: SupportTier; channels: string; response: string; responseHours: number; sla: string | null }
@@ -97,6 +99,7 @@ export const PRODUCTS: readonly Product[] = [
     },
     admin: { sso: 0, scim: 0, audit: 0, permissions: 0, residency: 0, soc2: 0 },
     integrations: 12,
+    ai: [],
     automationRuns: '100 runs a month',
     storage: '10 GB per user',
     support: { tier: 'basic', channels: 'Email', response: 'Within 2 business days', responseHours: 48, sla: null },
@@ -125,6 +128,7 @@ export const PRODUCTS: readonly Product[] = [
     },
     admin: { sso: 0, scim: 0, audit: 0, permissions: [1, 'Admin and member roles only'], residency: 0, soc2: 0 },
     integrations: 40,
+    ai: ['Task summaries'],
     automationRuns: '250 runs a month',
     storage: '100 GB shared',
     support: { tier: 'standard', channels: 'Email, chat (business hours)', response: 'Within 24 hours', responseHours: 24, sla: null },
@@ -151,6 +155,7 @@ export const PRODUCTS: readonly Product[] = [
     },
     admin: { sso: [1, 'Paid add-on, $4 per seat'], scim: 0, audit: 2, permissions: 2, residency: [2, 'EU or US'], soc2: 2 },
     integrations: 75,
+    ai: ['Status summaries', 'Smart scheduling'],
     automationRuns: '5,000 runs a month',
     storage: '250 GB shared',
     support: { tier: 'standard', channels: 'Email, chat (24/5)', response: 'Within 8 hours', responseHours: 8, sla: '99.9%' },
@@ -176,6 +181,7 @@ export const PRODUCTS: readonly Product[] = [
     },
     admin: { sso: 2, scim: 2, audit: 2, permissions: 2, residency: [2, 'EU, US, UK or Australia'], soc2: 2 },
     integrations: 150,
+    ai: ['Intake triage agent', 'Status summaries', 'Risk detection', 'Plain-English reports'],
     automationRuns: 'Unlimited',
     storage: 'Unlimited',
     support: { tier: 'premium', channels: 'Phone, chat, email (24/7) and a named success manager', response: 'Within 1 hour', responseHours: 1, sla: '99.95%' },
@@ -203,6 +209,7 @@ export const PRODUCTS: readonly Product[] = [
     },
     admin: { sso: [1, 'Enterprise plan only'], scim: 0, audit: [1, '90 days of history'], permissions: 2, residency: 0, soc2: 2 },
     integrations: 60,
+    ai: ['Writing assistant in docs', 'Status summaries'],
     automationRuns: '1,000 runs a month',
     storage: '1 TB shared',
     support: { tier: 'priority', channels: 'Email, chat, phone (business hours)', response: 'Within 4 hours', responseHours: 4, sla: '99.9%' },
@@ -229,6 +236,7 @@ export const PRODUCTS: readonly Product[] = [
     },
     admin: { sso: 2, scim: 2, audit: 2, permissions: [2, 'Custom roles per project'], residency: [1, 'EU on Enterprise only'], soc2: 2 },
     integrations: 200,
+    ai: ['Automations from plain English', 'Task summaries'],
     automationRuns: 'Unlimited',
     storage: '500 GB shared',
     support: { tier: 'basic', channels: 'Email and community forum', response: 'Within 2 business days', responseHours: 48, sla: '99.9%' },
@@ -255,6 +263,7 @@ export const PRODUCTS: readonly Product[] = [
     },
     admin: { sso: 0, scim: 0, audit: 0, permissions: [1, 'Three fixed roles'], residency: 0, soc2: [1, 'SOC 2 Type I only'] },
     integrations: 50,
+    ai: [],
     automationRuns: '100 runs a month',
     storage: '100 GB shared',
     support: { tier: 'standard', channels: 'Email, chat (24/7)', response: 'Within 12 hours', responseHours: 12, sla: null },
@@ -282,6 +291,7 @@ export const PRODUCTS: readonly Product[] = [
     },
     admin: { sso: 2, scim: [1, 'Enterprise plan only'], audit: 2, permissions: 2, residency: [2, 'EU or US'], soc2: 2 },
     integrations: 45,
+    ai: ['Workload forecasting', 'Risk detection', 'Status summaries'],
     automationRuns: '2,000 runs a month',
     storage: '1 TB shared',
     support: { tier: 'priority', channels: 'Email, chat, phone (business hours)', response: 'Within 4 hours', responseHours: 4, sla: '99.9%' },
@@ -308,6 +318,7 @@ export const PRODUCTS: readonly Product[] = [
     },
     admin: { sso: 2, scim: 0, audit: 2, permissions: 2, residency: 0, soc2: 2 },
     integrations: 220,
+    ai: ['Automations from plain English', 'Writing assistant', 'Meeting notes to tasks'],
     automationRuns: '25,000 runs a month',
     storage: '200 GB shared',
     support: { tier: 'standard', channels: 'Email, chat (business hours)', response: 'Within 24 hours', responseHours: 24, sla: '99.9%' },
@@ -337,6 +348,7 @@ export const PRODUCTS: readonly Product[] = [
     },
     admin: { sso: 2, scim: 2, audit: 2, permissions: 2, residency: [2, 'Self-hosted or EU cloud'], soc2: 2 },
     integrations: 25,
+    ai: ['Portfolio risk detection', 'Plain-English reports'],
     automationRuns: '1,000 runs a month',
     storage: 'Unlimited when self-hosted',
     support: { tier: 'priority', channels: 'Email, phone (EU business hours)', response: 'Within 8 hours', responseHours: 8, sla: '99.9%' },

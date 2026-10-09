@@ -55,7 +55,7 @@ export function costFor(p: Product, team: number): Cost {
       total: pr.annual + extra * extraAnnual,
       totalMonthlyBilling: pr.monthly + extra * extraMonthly,
       arithmetic: extra > 0
-        ? `${usd(pr.annual)} flat + ${extra} × ${usd(extraAnnual)}`
+        ? `${usd(pr.annual)} for ${pr.includedSeats} + ${extra} extra × ${usd(extraAnnual)}`
         : `Flat ${usd(pr.annual)} for up to ${pr.includedSeats} people`,
     }
   }
