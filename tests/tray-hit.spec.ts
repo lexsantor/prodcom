@@ -1,20 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
+import { pick, settled, tray } from './helpers.ts'
 
 // Every tray control must receive the pointer at its centre. Run it against the deployed site too
 // (PLAYWRIGHT_BASE_URL): hosts inject fixed overlays (e.g. Netlify's badge) that local preview never has.
 // Non-destructive: the app keeps state in the URL and localStorage only.
-
-const tray = (page: Page) => page.getByRole('region', { name: 'Your comparison' })
-const pick = (page: Page, name: string) => page.getByRole('checkbox', { name: `Compare ${name}` }).locator('visible=true')
-
-/** Wait for late, host-injected overlays to mount, so the hit test sees the page a visitor sees. */
-async function settled(page: Page) {
-  await page.waitForLoadState('networkidle')
-  // Netlify's injected HUD script marks its frame ready once sized; absent locally and when the badge is off.
-  if (await page.locator('script[data-nf-variant]').count()) {
-    await page.locator('iframe[data-nl-ready]').waitFor({ state: 'attached', timeout: 10_000 })
-  }
-}
 
 /** Controls whose centre point belongs to some other element. */
 async function blockedControls(page: Page) {
@@ -31,7 +20,7 @@ async function blockedControls(page: Page) {
   )
 }
 
-for (const [width, height] of [[1440, 900], [1280, 800], [768, 1024], [375, 812]]) {
+for (const [width, height] of [[1440, 900], [1280, 800], [1100, 800], [960, 800], [768, 1024], [375, 812]]) {
   test(`${width}px: every tray control takes the pointer; remove, compare and clear all work`, async ({ page }) => {
     await page.setViewportSize({ width, height })
     await page.goto('/')
