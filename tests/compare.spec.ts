@@ -138,6 +138,23 @@ test.describe('desktop', () => {
     await expect(page.getByRole('radio', { name: /Key differences/ })).toBeChecked()
   })
 
+  test('winner emphasis stays on its header; row emphasis follows the row best', async ({ page }) => {
+    await page.goto('/?compare=northlane,mondray,plotwise')
+    await expect(page.locator('.verdict-kicker')).toContainText('highest Prodcom score of your 3')
+    const fill = (sel: string) => page.locator(sel).first().evaluate((e) => getComputedStyle(e).backgroundColor)
+    // the winner's header is the badge; its body cells are framed, never filled
+    expect(await fill('table.matrix thead th[data-best]')).not.toBe('rgba(0, 0, 0, 0)')
+    expect(await fill('table.matrix tbody td[data-best]')).toBe('rgba(0, 0, 0, 0)')
+    // a row the winner trails (Mondray has the most integrations): the leader's value is bold, the winner's is not
+    const row = page.locator('tr', { has: page.locator('#m-automation-integrations') })
+    const weight = (i: number) => row.locator('td .val').nth(i).evaluate((e) => getComputedStyle(e).fontWeight)
+    expect(Number(await weight(0))).toBeLessThan(700)
+    expect(Number(await weight(1))).toBeGreaterThanOrEqual(700)
+    // the ledger explains its two derived numbers
+    await expect(page.locator('.ledger-key')).toContainText('out of 100')
+    await expect(page.locator('.ledger-key')).toContainText('not offered')
+  })
+
   test('without a winner, key differences still compare the eligible picks', async ({ page }) => {
     await page.goto('/?compare=quillo,orbitask')
     await expect(page.getByRole('heading', { name: 'No verdict for this set yet' })).toBeVisible()

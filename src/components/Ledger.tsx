@@ -69,6 +69,15 @@ export function Ledger(props: Props) {
             <p className="section-sub">
               Prices are per month for your whole team, billed yearly. Tick a product to add it to your comparison.
             </p>
+            <p className="ledger-key">
+              <span>Score: out of 100 for your team size. <a href="#method">How it is worked out</a></span>
+              <span>
+                Core features:{' '}
+                <span className="key-item"><span className="cell cell-2" aria-hidden="true" /> included</span>{' '}
+                <span className="key-item"><span className="cell cell-1" aria-hidden="true" /> limited</span>{' '}
+                <span className="key-item"><span className="cell cell-0" aria-hidden="true" /> not offered</span>
+              </span>
+            </p>
           </div>
           <div className="controls">
             <TeamSize team={team} onTeam={props.onTeam} />
@@ -111,7 +120,7 @@ export function Ledger(props: Props) {
                     <th scope="row" className="col-product">
                       <ProductName product={p} />
                       <div className="pmeta">
-                      <Badges product={p} />
+                      <Badges product={p} ai={false} />
                       <button
                         type="button"
                         className="more"
@@ -123,10 +132,10 @@ export function Ledger(props: Props) {
                       </button>
                       </div>
                     </th>
-                    <td className="col-num"><span className="score">{s.overall}</span></td>
+                    <td className="col-num"><span className="score">{s.overall}</span><span className="muted small"> / 100</span></td>
                     <td className="col-price"><Price s={s} team={team} /></td>
                     <td className="col-rating"><Rating product={p} /></td>
-                    <td className="col-features"><CoverageBar c={coreCoverage(p)} /></td>
+                    <td className="col-features"><CoverageBar c={coreCoverage(p)} /><AiBadge product={p} /></td>
                     <td className="col-sw"><StrengthLimit product={p} /></td>
                     <td className="col-visit"><Visit product={p} placement="ledger" /></td>
                   </tr>
@@ -228,9 +237,9 @@ function Pick({ product, slot, full, onToggle, variant }: PickProps) {
 }
 
 /** Plan and AI facts a buyer filters on before anything else. Text labels, so never color alone. */
-function Badges({ product }: { product: Product }) {
+function Badges({ product, ai: withAi = true }: { product: Product; ai?: boolean }) {
   const { freePlan, trialDays } = product.pricing
-  const ai = product.ai.length
+  const ai = withAi ? product.ai.length : 0
   if (!freePlan && !trialDays && !ai) return null
   return (
     <ul className="badges" aria-label={`${product.name} plans and AI`}>
@@ -242,6 +251,17 @@ function Badges({ product }: { product: Product }) {
         </li>
       )}
     </ul>
+  )
+}
+
+/** In the wide table the AI count sits with the feature coverage it belongs to, not with the plan facts. */
+function AiBadge({ product }: { product: Product }) {
+  const ai = product.ai.length
+  if (!ai) return null
+  return (
+    <span className="badge badge-ai badge-own" title={product.ai.join(', ')}>
+      <span aria-hidden="true">✦ </span>AI{' · '}<span className="badge-n">{ai}<span className="sr-only"> {ai === 1 ? 'feature' : 'features'}</span></span>
+    </span>
   )
 }
 

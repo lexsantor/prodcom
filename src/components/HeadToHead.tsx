@@ -319,7 +319,7 @@ function Stacks({ picked, groups, winner }: { picked: Scored[]; groups: Visible;
                   <h4 id={id} tabIndex={-1}>{r.label}{r.hint && <span className="m-hint"> {r.hint}</span>}{status === 'behind' && winner && <BehindFlag winner={winner} row={r} picked={picked} />}</h4>
                   <ul aria-labelledby={id}>
                     {picked.map((s, i) => (
-                      <li key={s.product.id} data-best={s.product.id === winnerId || undefined}>
+                      <li key={s.product.id} data-best={s.product.id === winnerId || undefined} data-top={best.has(s.product.id) || undefined}>
                         <span className="slot-n" aria-hidden="true">{i + 1}</span>
                         <span className="srow-name">{s.product.name}<span className="sr-only">:</span></span>
                         <span className="srow-val">

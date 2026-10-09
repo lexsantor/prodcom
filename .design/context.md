@@ -69,8 +69,8 @@ Direction record (committed: **"The Ledger and the Head-to-head"**):
   src: BUILD DIRECT 2026-10-02 · deps: T-3
 - **D-3** decision:P5 · active · Selection state lives in the URL (`?compare=a,b&team=10`) so a comparison can be shared and restored.
   src: BUILD DESIGN 2026-10-02 · deps: T-4
-- **D-4** decision:P5 · active · Winner treatment: pastel highlighter fill on the winner's column/stack plus a text label "Best overall" and a thicker top rule; never color alone.
-  src: BUILD DESIGN 2026-10-02 · deps: T-6
+- **D-10** decision:P5 · active · Winner treatment: butter fill only on the winner's matrix header and phone key, with the text label "Best overall" and a thicker top rule; its body cells are framed by thin edges, never filled, so a row the winner trails does not read as a strength; row emphasis is the bold row-best value on desktop and phone. The verdict is a paper panel with a highlighter stroke under the winner's name, and its label states the logic ("the highest Prodcom score of your N").
+  src: POLISH 2026-10-09 (V3) · deps: T-6
 
 Tokens (OKLCH, COLOR-004 construction; anchor = slate ink on cool paper):
 
@@ -140,6 +140,12 @@ Rejected in this run:
 - Outline (quiet) Visit buttons in the ledger, proposed by the visual auditor to lighten the ink stripe: rejected under U-3/U-4 without measured evidence; recorded as an A/B candidate.
 - Accordions per group: still rejected (iteration 2 reason); the section index gives navigation without hiding rows.
 - Unknown/not-applicable states in the matrix: the dataset has no unknown values, so no state was invented (T-3); the Avail model stays 0/1/2.
+
+### Iteration 4 (2026-10-09): V3 refinement (page POLISH)
+
+Verified against the running build at 1440/1280/768/375, DPR 1 (before/after shots in the session scratchpad). Confirmed: winner column/stack tint on every row, including rows the winner trails (misleading); butter verdict panel competing with the matrix; ledger rows 105–152 px at 1440 because a third badge wrapped the product cell; price no larger than the rating; score shown without its scale; coverage hatching unexplained; selected rows on a full tint. Not confirmed: underused width (ledger 1240 px of 1440, 86%; full width at 1280), text too small overall (body 16 px; only badges are below the scale), desktop tray too technical (names, numbered slots, remove, progress and CTA all visible).
+Changes: D-10 (above); price total at --t-xl/750; "/ 100" after the ledger score; a reading key under the ledger head (score scale + coverage swatches); AI count moved from the product cell to the core-features cell in the wide table (cards unchanged); selected rows and cards on --pick-wash (97.2% L) keeping the 4 px bar, checked box and slot number; column widths rebalanced (score 7.5%, Stands out 18%, Visit 7.5%). Row heights 1224 → 1155 px total, tallest 152 → 127.
+Deferred: phone tray slots show number and mark only (a name fits only with a 2-row tray, +46 px over content); badges at 0.75rem.
 
 ## Constraints & Preserved Patterns
 
@@ -231,6 +237,8 @@ None.
 - Tray: sticky at the bottom of the ledger section; below 900 px it is static while empty; slot names visible from 600 px (2×2 slots 600–899), number + mark only below 600 with names kept for assistive tech.
 
 ## Retired
+
+- **D-4** (retired 2026-10-09, V3 POLISH) → D-10. Reason: the column/stack fill marked the winner's weak rows as strong.
 
 - **D-6** decision:P5 · retired 2026-10-09 · Head-to-head view is shareable: `?view=behind|diff` (absent = Everything); additive to the D-5 contract, which is unchanged.
   reason: the user asked for three presentation levels with an evidence-based default (U-5); behind/diff/everything replaced · superseded-by: D-7

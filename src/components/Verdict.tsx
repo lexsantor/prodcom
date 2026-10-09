@@ -113,10 +113,10 @@ export function Verdict({ verdict, team, behindCount, onShowBehind }: VerdictPro
 
   return (
     <div className="verdict">
-      <p className="verdict-kicker">Best overall of your {ranked.length + excluded.length} for a team of {team}</p>
+      <p className="verdict-kicker">Best overall: the highest Prodcom score of your {ranked.length + excluded.length}, for a team of {team}</p>
       <h3 className="verdict-title">
         <Mark product={winner.product} size={28} />
-        <span>{winner.product.name}</span>
+        <span className="verdict-name">{winner.product.name}</span>
         <span className="verdict-score"><span className="num">{winner.overall}</span><span className="muted"> / 100</span></span>
       </h3>
       <p className="verdict-why">
