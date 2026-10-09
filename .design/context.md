@@ -176,7 +176,8 @@ Rejected after measurement: two-column tablet cards (cards 490 px tall at 768, c
 
 ## Known Exceptions
 
-- **Pending (found 2026-10-09, Phase B, not fixed by decision):** in the ledger table at 1040-1100 px the score cell wraps its scale onto a second line ("70 /" then "100"). Pre-existing since the V3 column rebalance; Phase B leaves the table untouched. Candidate fix for a later phase: keep "/ 100" with the score (no-wrap) or widen the score column at that range, then re-check row heights.
+- **Pending (found 2026-10-09, score-wrap hotfix, not fixed by decision):** in the ledger table the 15-cell core-features coverage bar is wider than its cell content box: it runs 35px past it at 1040px (12px padding, so ~23px into the Stands out column, touching its "+" glyph), 28 at 1100, 18 at 1180, 10 at 1280-1440 (inside the padding). Candidate fix for a later phase: size the cells from the column width, or widen the features column, then re-check row heights.
+- **Resolved 2026-10-09 (score-wrap hotfix):** the table score wrapped its scale under the number ("70 /" then "100") at 1040-~1155px, not only 1040-1100: "74 / 100" needs ~59px and the 7.5% column left 49-57px inside 12px padding. Fixed with nowrap on the score cell and 6px side padding on the score column below 1180px; no column width changed, row heights identical. Guarded by the responsive spec ("table scores stay on one line").
 
 ## Rejected Directions
 

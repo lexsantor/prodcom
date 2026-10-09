@@ -264,6 +264,10 @@ th[aria-sort] .sort { color: var(--ink); }
 .ledger-table td.col-pick { padding-block: 6px; }
 /* Fixed proportions: each data column holds one value line plus one sub-line, so comparable values share a baseline. */
 .ledger-table .col-num { width: 7.5%; }
+/* "74 / 100" needs ~59px; below 1180px 7.5% leaves 49-57px inside 12px padding, so the scale wrapped under the
+   number. Halving the side padding there keeps every other column's width; nowrap keeps number and scale together. */
+.ledger-table td.col-num { white-space: nowrap; }
+@media (max-width: 1179px) { .ledger-table .col-num { padding-inline: 6px; } }
 .ledger-table .col-price { width: 13%; }
 .ledger-table .col-rating { width: 10.5%; }
 .ledger-table .col-features { width: 12.5%; }

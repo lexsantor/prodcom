@@ -146,6 +146,27 @@ test('phone masthead keeps all its content and the first product sits higher', a
   expect(firstTop).toBeLessThanOrEqual(860) // 908 before Phase B
 })
 
+test('table scores stay on one line, unclipped and aligned with their header', async ({ page }) => {
+  for (const width of [1040, 1050, 1080, 1100, 1120, 1150, 1179, 1180, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto(FOUR)
+    const r = await page.evaluate(() => {
+      const cells = [...document.querySelectorAll<HTMLElement>('.ledger-table tbody td.col-num')]
+      const header = document.querySelector('.ledger-table thead th.col-num .sort')!.getBoundingClientRect()
+      return {
+        // wrapped: the " / 100" scale breaks into fragments or starts below the number
+        wrapped: cells.filter((td) => {
+          const scale = td.querySelector('.muted')!, rects = scale.getClientRects()
+          return rects.length > 1 || rects[0].top >= td.querySelector('.score')!.getBoundingClientRect().bottom - 1
+        }).length,
+        clipped: cells.filter((td) => td.scrollWidth > td.clientWidth + 1).length,
+        misaligned: cells.filter((td) => Math.abs(td.querySelector('.score')!.getBoundingClientRect().left - header.left) > 1).length,
+      }
+    })
+    expect(r, `${width}px`).toEqual({ wrapped: 0, clipped: 0, misaligned: 0 })
+  }
+})
+
 test('desktop layout is unchanged at 1280 and 1440px', async ({ page }) => {
   for (const width of [1280, 1440]) {
     await load(page, width, FOUR)
