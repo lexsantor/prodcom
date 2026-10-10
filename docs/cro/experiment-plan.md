@@ -2,6 +2,9 @@
 
 Date: 2026-10-09. Scope: the comparison page as it stands after the iteration-3 UX refactor. Tracking contract: `docs/analytics/tracking-plan.md`.
 
+> **Scope (2026-10-10, U-6):** Prodcom is a fictional side project and product-design portfolio demonstration, not a live business. CVR, VCVR and Gross Profit are conceptual business metrics; nothing in this document is a measured outcome. Analytics providers (PostHog, GA4, GTM or any other), consent management platforms, revenue attribution, affiliate postbacks and live commercial A/B testing are **out of scope**. Sections that depend on them are kept as design reasoning, not as a plan.
+> Prerequisites P1–P5 and experiments E1–E6 below will not be run. They remain as an example of how such a programme would be specified.
+
 ## 1. Verdict on readiness
 
 **No experiment can be run or evaluated yet, and Gross Profit cannot be calculated.** Phase-0 discovery of the repository found:
@@ -81,6 +84,8 @@ Prerequisites, in order (none optional):
 
 ## 5. Experiment specifications
 
+> **Historical example (U-6, 2026-10-10):** these specifications show how the experiments would be designed for a live product. None will be run: no feature flag, assignment platform, traffic or baseline exists or is planned.
+
 Common to all: unit = visitor (sticky assignment); α = 0.05 two-sided; power 0.80; fixed horizon, no peeking. Use a sequential test only if the platform implements it correctly. Minimum 2 full weeks to cover weekday cycles. Conversion metrics are read only after the network's attribution window has closed (verify per network). Decide on the **primary metric only**; secondaries explain, guardrails can veto.
 
 **Primary metric, all experiments:** Gross Profit per eligible visitor = (approved attributed revenue − direct costs) / eligible visitors. It is a continuous, heavy-tailed metric, so use a t-test on visitor-level values with winsorization at the 99.9th percentile (pre-registered) or a bootstrap CI. Until P3 exists it cannot be evaluated, and **CTR must not stand in for it**.
@@ -144,9 +149,13 @@ Specify when ranks 1–3 are resolved. E4 suggestions must use the editorial sco
 
 ## 8. Recommendation
 
+> **Superseded by U-6 (2026-10-10).** The paragraph below is the historical proposal for a live business, not an instruction. Instrumentation shipped only as the demonstrative tracking v2 contract (`window.dataLayer`); P1–P5, baseline collection, feature flags and E1 will not happen.
+
 **Do not ship, iterate or revert anything commercial yet. There are no results.** Ship the instrumentation (contract v1). Close P1–P5, collect at least 2 weeks of baseline, then launch E1 behind a flag.
 
-## Open questions
+## Open questions (not applicable, U-6)
+
+> These need a real business owner, networks and destinations. In this fictional project they have no answer and block nothing; kept as the list a real product would have to resolve.
 
 1. What are the organisation's exact definitions of CVR and VCVR: numerator, denominator, attribution window?
 2. Which affiliate networks or direct agreements apply per vendor, and what is each network's sub-id parameter?

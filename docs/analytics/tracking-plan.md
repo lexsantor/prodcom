@@ -4,9 +4,12 @@ Source of truth for the events emitted by `src/lib/track.ts`. Change this file a
 
 ## Status
 
+> **Scope (2026-10-10, U-6):** Prodcom is a fictional side project and product-design portfolio demonstration, not a live business. CVR, VCVR and Gross Profit are conceptual business metrics; nothing in this contract is a measured outcome. Analytics providers (PostHog, GA4, GTM or any other), consent management platforms, revenue attribution, affiliate postbacks and live commercial A/B testing are **out of scope**. Sections that depend on them are kept as design reasoning, not as a plan.
+
+- **Implemented:** contract v2 (envelope, events, rules below), emitted by `src/lib/track.ts` and covered by unit and E2E tests. **Reference only:** `click_id`, `attributed_conversion` and experiment assignment at the end of this file.
 - **Emitted today:** to `window.dataLayer` only. No tag manager, analytics vendor, consent platform or backend exists in this repository, so nothing leaves the browser.
 - **Environment:** demo. Every product, price, rating and destination URL (`https://<id>.example/`) is fictional. No commercial agreement, revenue or margin data exists in the repo.
-- **Not emitted by the frontend:** `attributed_conversion` (server-side; spec below).
+- **Not implemented anywhere:** `attributed_conversion` (hypothetical server-side event; reference-only spec below).
 
 ## Version history
 
@@ -68,18 +71,20 @@ Product ids are the stable dataset ids (`northlane`, `taskara`, ...). Events nam
 - **Deduplication:** an identical event payload within 800 ms is dropped (double clicks, re-renders). Server-side deduplication of conversions is by `click_id` (below).
 - **Error handling:** `track()` never throws; analytics failure cannot break the page.
 - **No sensitive data:** no email, name, free text, IP-derived data, prices paid, commission or margin. Margin data must never reach the frontend.
-- **Consent:** the module stores nothing and sends nothing. The site's consent platform and tag manager must gate every tag that reads `dataLayer` (for example Consent Mode or an equivalent). Required before production traffic.
+- **Consent:** the module stores nothing and sends nothing, so no consent is needed for it as shipped. If this contract were ever connected to a real tag manager, a consent platform would have to gate every tag that reads `dataLayer`. Not planned (U-6).
 - **Validation:** `npm test` checks the envelope, unknown-id dropping and dedupe. The E2E "analytics" test walks the journey and checks event order, fields, one `page_view_id`, no `@` in any event, and the outbound URL.
 
-## Attribution (current and required)
+## Attribution (implemented UTMs; `click_id` reference only)
 
 - **Current:** outbound URLs carry `utm_source=prodcom&utm_medium=compare&utm_content=<placement>`, `rel="sponsored noopener"`, new tab. v2 adds only the placement value `stack` (phone and tablet head-to-head).
-- **Missing (blocks Gross Profit measurement):** a per-click id joining a click to a vendor conversion.
+- **Not built, out of scope (U-6):** a per-click id joining a click to a vendor conversion. Kept as a reference design of how Gross Profit would be made measurable in a real product.
   - Spec: generate `click_id` (UUID) at click time.
   - Add it to `product_cta_clicked` and to the destination URL in the affiliate network's own sub-id parameter. The parameter name depends on each network: verify it, never guess.
   - Import conversions by `click_id` from network postbacks or reports.
 
-## `attributed_conversion` (server-side spec)
+## `attributed_conversion` (server-side spec, reference only)
+
+> Not built and not planned (U-6). Kept to show how conversions and Gross Profit would be reconciled in a real product.
 
 Source: affiliate network postback or report import, never the browser.
 
@@ -91,6 +96,6 @@ Source: affiliate network postback or report import, never the browser.
 
 Gross Profit = approved revenue − direct costs (network fees, paid acquisition attributable to the session, if any), computed in the warehouse. It is never exposed client-side.
 
-## Experiment assignment (when a platform exists)
+## Experiment assignment (reference only)
 
-Add `experiments: { <experiment_key>: <variant> }` to the envelope from the platform's assignment API. Assign once per visitor before first render to avoid flicker, and log an exposure event when the treated element renders. Not implemented: there is no platform to read from.
+Add `experiments: { <experiment_key>: <variant> }` to the envelope from the platform's assignment API. Assign once per visitor before first render to avoid flicker, and log an exposure event when the treated element renders. Not implemented and not planned (U-6).

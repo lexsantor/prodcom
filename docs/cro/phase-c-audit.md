@@ -1,6 +1,9 @@
 # Prodcom V3: product and conversion audit (pre-Phase C)
 
 Date: 2026-10-10. Read-only audit. Nothing in `src/`, tracking, scoring, pricing or links was changed.
+
+> **Scope (2026-10-10, U-6):** Prodcom is a fictional side project and product-design portfolio demonstration, not a live business. CVR, VCVR and Gross Profit are conceptual business metrics; nothing in this document is a measured outcome. Analytics providers (PostHog, GA4, GTM or any other), consent management platforms, revenue attribution, affiliate postbacks and live commercial A/B testing are **out of scope**. Sections that depend on them are kept as design reasoning, not as a plan.
+> **Outcome:** C0-A, C1-A and C1-B shipped in 46854fd and are closed; C0-B and C3 are out of scope; C2 ideas moved to the product-experience backlog (see `.design/context.md`, iteration 6).
 Builds on `docs/cro/experiment-plan.md` (2026-10-09) and `docs/analytics/tracking-plan.md` (contract v1); it does not repeat them where they still hold.
 
 **Environment checked:** `main` = `origin/main` = `750733e`, clean tree. A fresh local build produces `index-BBlLbfY4.js` and `index-BghTXoun.css`, the exact assets production serves, so production is the current `main`.
@@ -175,13 +178,15 @@ Effort: S = copy/CSS or one function; M = component change; L = new data or infr
 **O-H. Must-have filter** (decision-support, research first)
 1 F10 · 2 one personalization axis · 3 code only · 4 hard requirements need a full scan · 5 Evaluation · 6 one optional "Must have" chip row (SSO, time tracking, guests…) that marks rows that fail, without re-weighting the score · 7 elimination of unsuitable options · 8 — · 9 — · 10 low · 11 M–L · 12 medium (complexity, score credibility) · 13 research · 14 interviews / first-click study before any build.
 
-**O-I. Ledger Visit visual weight** (commercial experiment; existing E1) and **O-J. destination-specific CTA labels** (existing E6): unchanged from `experiment-plan.md`; both blocked on P1–P5 and real destinations.
+> **U-6 (2026-10-10):** O-F, O-G and O-H are product-experience backlog items (`.design/context.md`, iteration 6), assessed by heuristic review and usability walkthroughs. Their problem evidence (fields 1–7) stands; the experiment, instrumentation and baseline fields (8, 9, 13, 14) are historical and no longer gate them.
+
+**O-I. Ledger Visit visual weight** (commercial experiment; existing E1) and **O-J. destination-specific CTA labels** (existing E6): unchanged from `experiment-plan.md`; both blocked on P1–P5 and real destinations. Out of scope under U-6.
 
 ---
 
 ## 7. Top five recommendations
 
-1. **Make the funnel observable (O-C + P1).** Fix the scroll trigger, add position and sort to clicks and selections, and get a consented tag manager reading `dataLayer` in production. Today no recommendation in this document can be evaluated, and F2 would bias the first data by device. Helps: *advance* (measurable progression), and makes every other item testable.
+1. **Make the funnel observable (O-C + P1).** Fix the scroll trigger, add position and sort to clicks and selections, and get a consented tag manager reading `dataLayer` in production. Today no recommendation in this document can be evaluated, and F2 would bias the first data by device. Helps: *advance* (measurable progression), and makes every other item testable. *(Historical, U-6: the scroll-trigger and payload fixes shipped as tracking v2; a production tag manager is out of scope.)*
 2. **One ranking order everywhere (O-A).** The page publishes a tie rule the table breaks. A user who notices the table and verdict disagree has a reason to distrust the verdict. Helps: *decide*. Smallest diff in this audit.
 3. **Stop scoring what cannot be scored (O-B).** Removes a misleading number and demotes an exit that cannot fit the stated team. Helps: *compare* and *decide*; plausibly raises the share of qualified clicks. Commercial-surface approval required.
 4. **Per-pick Visit in the phone head-to-head (O-D).** The decision moment on phones has no action for 1–3 of the picks, unlike desktop. Helps: *advance* from a confident decision without a 5–10k px scroll back.
@@ -189,13 +194,15 @@ Effort: S = copy/CSS or one function; M = component change; L = new data or infr
 
 Why these over further visual refinement: Phase B closed the measured layout and accessibility defects. Each item above addresses a verified behaviour (wrong order, misleading score, missing action, broken link, blind metric). None is a matter of taste, and four are small.
 
-Deliberately not in the top five: near-tie disclosure (O-F) and team-size prompt (O-G) have verified conditions but unknown user impact. They go to research and experiments, not straight to production.
+Deliberately not in the top five: near-tie disclosure (O-F) and team-size prompt (O-G) have verified conditions but unknown user impact. They go to research and experiments, not straight to production. *(Historical, U-6: they are now product-experience backlog items, assessed by heuristic review and usability walkthroughs.)*
 
 ---
 
 ## 8. Experiment backlog
 
 A/B testing is not possible today: no traffic data, no assignment platform, no outcome metric. The methods below fit the current evidence.
+
+> **Historical (U-6, 2026-10-10):** no experiment, A/B test or analytics baseline will be run. The questions behind X1 (near-tie comprehension) and X3 (which must-haves eliminate tools) carry over to the usability walkthroughs for O-F and O-H; X2, X4 and E1/E6 depended on collected analytics and are dropped.
 
 | # | Problem | Hypothesis | Control → Variant | Primary outcome | Guardrails | Instrumentation | Method | Interpretation | Risks |
 |---|---|---|---|---|---|---|---|---|---|
@@ -245,17 +252,13 @@ Bounded to items with verified conditions. Each block lists its gate.
 - Related categories: non-link "coming soon" text (F3).
 - Out of scope: any change to weights, prices, data, URLs, UTMs or the verdict copy.
 
-**C2 Decision-support experiments (research, no production change)**
-- X1 near-tie comprehension test; X3 buyer interviews. Output: go/no-go for O-F and O-H.
-- Gate G3: research budget and participants.
+**C2 Decision-support ideas (moved to the product-experience backlog, 2026-10-10)**
+- Near-tie wording (O-F), a visible "ranked for a team of N" (O-G) and a must-have filter (O-H) are design candidates, judged by heuristic review and usability walkthroughs. No live experiment, no research budget gate.
 
-**C3 Commercial optimization (blocked)**
-- E1 ledger Visit weight, X2 team-size prompt as A/B, E6 labels.
-- Gate G4: business supplies CVR/VCVR definitions and confirms the GP formula (P4).
-- Gate G5: consent platform + tag manager live (P1); 2-week baseline collected.
-- Gate G6: real destinations, agreements, `click_id` in each network's sub-id, conversion import (P2, P3); experiment platform (P5).
+**C3 Commercial optimization: OUT OF SCOPE (2026-10-10, U-6)**
+- E1 ledger Visit weight, X2 team-size prompt as A/B and E6 labels need real traffic, revenue and an experiment platform, which a portfolio demonstration does not have. Gates G4–G6 (metric definitions, consent platform and tag manager, destinations and conversion import) no longer apply.
 
-Dependency order: G1 → C0 → (G2) C1 → C2 in parallel → G4–G6 → C3. Without G5, C0 and C1 still ship value (correctness, honest states), but no result can be measured.
+Dependency order as shipped: G1 → C0-A → (G2) C1 → closed. C0-B and C3 are out of scope.
 
 ---
 
@@ -268,9 +271,11 @@ Dependency order: G1 → C0 → (G2) C1 → C2 in parallel → G4–G6 → C3. W
 | O-B ineligible state | yes (prod) | yes | yes | plausibly (fewer unfit clicks) | after P1 | low if Visit kept | yes (S–M) | **keep, gated** |
 | O-D phone Visit | yes (prod) | — | — | plausibly | after P1 | low | yes (M) | **keep, gated** |
 | O-E 404s | yes (prod) | — | yes | — | E2E | none | yes (S) | **keep** |
-| O-F near-tie | condition yes, impact no | — | unknown | unknown | research | medium | research only | **defer to X1** |
-| O-G team prompt | condition yes, impact no | — | — | unknown | after P1 | low | after baseline | **defer to X2** |
-| O-H must-have filter | no | maybe | maybe | unknown | research | medium | not yet | **defer to X3** |
-| E1 / E6 | partial / blocked | — | — | unknown | no | medium | no | **blocked** |
+| O-F near-tie | condition yes, impact no | — | unknown | unknown | research | medium | research only | ~~defer to X1~~ **backlog (U-6)** |
+| O-G team prompt | condition yes, impact no | — | — | unknown | after P1 | low | after baseline | ~~defer to X2~~ **backlog (U-6)** |
+| O-H must-have filter | no | maybe | maybe | unknown | research | medium | not yet | ~~defer to X3~~ **backlog (U-6)** |
+| E1 / E6 | partial / blocked | — | — | unknown | no | medium | no | ~~blocked~~ **out of scope (U-6)** |
+
+Outcome (U-6, 2026-10-10): O-A, O-B, O-D, O-E and the O-C payload fixes shipped in 46854fd; O-C's production collection is out of scope.
 
 Reminders that shaped this report: a higher outbound CTR is not higher Gross Profit; nothing here is a measured user reaction; production data, traffic and revenue were not available to this audit.

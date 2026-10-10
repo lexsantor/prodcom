@@ -1,6 +1,9 @@
 # Prodcom V3: Phase C0 + C1 specification
 
 Date: 2026-10-10. **Specification only.** No code, commit, push or deploy. Input: `docs/cro/phase-c-audit.md`.
+
+> **Scope (2026-10-10, U-6):** Prodcom is a fictional side project and product-design portfolio demonstration, not a live business. CVR, VCVR and Gross Profit are conceptual business metrics; nothing in this document is a measured outcome. Analytics providers (PostHog, GA4, GTM or any other), consent management platforms, revenue attribution, affiliate postbacks and live commercial A/B testing are **out of scope**. Sections that depend on them are kept as design reasoning, not as a plan.
+> **Outcome:** sections 1–3 (C1-A, C1-B, C0-A) were implemented and shipped in 46854fd. Section 4 (C0-B) is closed as out of scope and kept only as reference reasoning.
 Repository verified: `main` = `origin/main` = `750733e`; the only untracked files are the two `docs/cro/` documents from this phase. Production serves the build of `750733e` (asset hashes match a fresh local build).
 
 New evidence gathered for this spec (production, Chromium):
@@ -159,7 +162,9 @@ Already present and kept: surface (`placement`), team size, comparison context (
 
 ---
 
-## 4. C0-B analytics and consent proposal (no installation)
+## 4. C0-B analytics and consent proposal (no installation): OUT OF SCOPE
+
+> Closed 2026-10-10 (U-6). Nothing in this section will be implemented: no provider, tag manager or consent platform. It stays as a record of how collection would be designed for a real product.
 
 ### Current state (verified)
 - **Consent:** none. No consent platform, no banner, no cookies, no storage (`document.cookie` and `localStorage` empty in production).
@@ -176,7 +181,7 @@ Already present and kept: surface (`placement`), team size, comparison context (
 | **C. Product analytics (PostHog EU cloud or self-hosted)** | Funnels, cohorts, **feature flags and experiments** (covers P5), warehouse export | Heavier script; cost at scale; consent needed for any persistence; configuration effort |
 | **D. First-party endpoint (Netlify Function → warehouse)** | Full control; joins cleanly with affiliate postbacks | You build and maintain collection, bot filtering and dashboards |
 
-**Recommendation:** **C (PostHog, EU region), consent-gated, memory-only persistence until consent**, with warehouse export when revenue import (P3) arrives. It is the only option that also provides the experiment platform the backlog needs (P5) without a second vendor. **A** is the fallback if partners or the organisation already standardise on Google. The decision is the business's; it needs cost and legal review (G4).
+**Recommendation (historical, superseded by U-6 on 2026-10-10; not to be implemented):** **C (PostHog, EU region), consent-gated, memory-only persistence until consent**, with warehouse export when revenue import (P3) arrives. It is the only option that also provides the experiment platform the backlog needs (P5) without a second vendor. **A** is the fallback if partners or the organisation already standardise on Google. The decision is the business's; it needs cost and legal review (G3).
 
 ### Transport and consent gating
 - `track()` stays the single producer; components never call a vendor.
@@ -273,7 +278,7 @@ No change to `src/data/products.ts`, weights, prices, URLs or UTM parameters bey
 | Business rejects the published tie rule | the comparator and Method copy are changed together; tests encode whichever rule is approved |
 | Consent and provider choice delayed | C0 and C1 still ship correctness value; nothing claims measurability until production collection is verified |
 
-Dependencies: C1-A and C0-A are code-only. C0-B needs the business (provider, legal, budget) and P2–P4 for revenue.
+Dependencies: C1-A and C0-A are code-only. C0-B, which needed a business owner (provider, legal, budget) and P2–P4 for revenue, is out of scope (U-6).
 
 ---
 
@@ -288,7 +293,7 @@ Dependencies: C1-A and C0-A are code-only. C0-B needs the business (provider, le
 | 4 | Full suite, axe, responsive sweep, diff review, design-context and tracking-plan updates | — |
 | G2 | Review of the diff and test evidence | your approval to commit, push and deploy |
 | 5 | Deploy, then production verification (tracking spec, responsive spec, commercial contract checks) | — |
-| G3 | Provider choice, consent design and legal review (C0-B) | business |
-| G4 | CVR, VCVR and GP definitions; network sub-ids; conversion import | business |
+| ~~G3~~ | Provider choice, consent design and legal review (C0-B) | **out of scope** (U-6) |
+| ~~G4~~ | CVR, VCVR and GP definitions; network sub-ids; conversion import | **out of scope** (U-6); the metrics stay conceptual |
 
 Out of scope throughout: filters, weight changes, new sections, urgency elements, visual changes beyond the states above, installing any analytics.
