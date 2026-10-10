@@ -203,6 +203,33 @@ test('table feature bars fit their cell and leave the next column clear', async 
   }
 })
 
+test('every ledger Visit stays inside its cell or card, unclipped and usable', async ({ page }) => {
+  // 1040-1440: table rows (the button used to spill past its cell below 1280px). Below 1040: cards, checked for collateral.
+  for (const width of [320, 375, 768, 960, 1024, 1040, 1100, 1180, 1200, 1239, 1280, 1440]) {
+    await page.setViewportSize({ width, height: 800 })
+    await page.goto(`${FOUR}&team=6`) // team 6 puts Quillo past its seat cap, so the quiet Visit is measured too
+    const r = await page.evaluate(() => {
+      const visits = [...document.querySelectorAll<HTMLElement>('.ledger a[data-visit]')].filter((a) => a.getClientRects().length)
+      const problems: string[] = []
+      for (const a of visits) {
+        const box = a.closest<HTMLElement>('td, .lcard-actions')!, cs = getComputedStyle(box), br = box.getBoundingClientRect()
+        const left = br.left + parseFloat(cs.paddingLeft), right = br.right - parseFloat(cs.paddingRight)
+        const ar = a.getBoundingClientRect(), id = a.dataset.visit
+        // 0.5px: subpixel rounding of percentage column widths
+        if (ar.left < left - 0.5 || ar.right > right + 0.5) problems.push(`${id}: ${ar.left.toFixed(1)}-${ar.right.toFixed(1)} outside ${left.toFixed(1)}-${right.toFixed(1)}`)
+        if (a.scrollWidth > a.clientWidth + 1) problems.push(`${id}: content clipped`)
+        const label = document.createRange()
+        label.selectNodeContents(a.firstChild!) // the visible "Visit" text node
+        const parts = [label.getBoundingClientRect(), a.querySelector('.visit-icon')!.getBoundingClientRect()]
+        if (parts.some((p) => !p.width || p.left < ar.left || p.right > ar.right)) problems.push(`${id}: label or icon outside the button`)
+        if (ar.width < 24 || ar.height < 36) problems.push(`${id}: target ${ar.width.toFixed(0)}x${ar.height.toFixed(0)}`)
+      }
+      return { inTable: visits.filter((a) => a.closest('td')).length, visits: visits.length, problems }
+    })
+    expect(r, `${width}px`).toEqual({ inTable: width >= 1040 ? 10 : 0, visits: 10, problems: [] })
+  }
+})
+
 test('desktop layout is unchanged at 1280 and 1440px', async ({ page }) => {
   for (const width of [1280, 1440]) {
     await load(page, width, FOUR)

@@ -278,8 +278,20 @@ th[aria-sort] .sort { color: var(--ink); }
 .ledger-table .col-rating { width: 10.5%; }
 .ledger-table .col-features { width: 12.5%; }
 .ledger-table .col-sw { width: 18%; }
-.ledger-table .col-visit { width: 7.5%; text-align: right; }
-.ledger-table .col-visit .visit { min-height: 36px; padding-inline: 12px; }
+/* The nowrap Visit button (~72px) must fit inside its cell. 7.5% gave 73-88px minus 24px padding, so below the table's
+   1176px cap it spilled past the cell. 5.5rem is the old width at the cap, so the table is unchanged from 1240px, and
+   the column stops shrinking below it. The button is right-aligned, so the left padding was empty space; Stands out
+   keeps its own 12px gap. Below the cap, Price, Rating and Features (all shorter than their rows) give back the
+   up-to-15px the Visit column now keeps, so the Product column, which sets row height, never narrows. Each stays just
+   above the width where its own text wraps (header, review count, price line). */
+.ledger-table .col-visit { width: 5.5rem; text-align: right; }
+.ledger-table td.col-visit { padding-left: 0; }
+.ledger-table .col-visit .visit { min-height: 36px; padding-inline: 10px; }
+@media (max-width: 1239px) {
+  .ledger-table .col-price { width: 12.5%; }
+  .ledger-table .col-rating { width: 9.75%; }
+  .ledger-table .col-features { width: 12.25%; }
+}
 
 /* Stands out / Watch out: one strength, one limitation, glyph plus hidden label so meaning never rests on the sign. */
 .sw { display: grid; gap: 4px; font-size: var(--t-sm); line-height: 1.35; }
