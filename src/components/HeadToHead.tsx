@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MAX_SELECTED } from '../lib/selection.ts'
-import { nearestBy, topEligible, usd, verdictFor, type Scored } from '../lib/score.ts'
+import { marginOf, nearestBy, topEligible, usd, verdictFor, type Margin, type Scored, type Verdict as VerdictT } from '../lib/score.ts'
+import { captionLine, contenderTag, keyContender, keyQualifier, winnerQualifier } from '../lib/certainty.ts'
 import { focusLedger, focusVisible } from '../lib/focus.ts'
 import { setTrackContext, startComparison, track } from '../lib/track.ts'
 import { NotScored, unservable } from './Ledger.tsx'
@@ -39,6 +40,8 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
   const groups = useMemo(() => buildGroups(team), [team])
   const winner = verdict.winner ?? undefined
   const winnerId = winner?.product.id
+  const margin = marginOf(verdict)
+  const certainty = { verdict, margin }
   const classified = groups.map((g) => ({ g, rows: g.rows.map((row): Classified => ({ row, status: statusOf(row, picked, winnerId), gkey: g.key })) }))
   const all = classified.flatMap((c) => c.rows)
   const counts: Record<View, number> = {
@@ -90,6 +93,14 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
     focusVisible(...(first ? [`m-${first}`, `s-${first}`] : []), 'view-control')
   }
 
+  /** From the score breakdown: every pick's six area scores live in the complete matrix, under the score group. */
+  function showAreas() {
+    if (view !== 'all') track({ event: 'comparison_view_changed', from: view, to: 'all', rows: counts.all, trigger: 'verdict' })
+    setView('all')
+    onAnnounce(`Showing the complete matrix: ${counts.all} rows. The six score areas are under Prodcom score.`)
+    focusVisible('m-score', 's-score')
+  }
+
   async function copyLink() {
     try {
       await navigator.clipboard.writeText(window.location.href)
@@ -123,7 +134,7 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
 
         {picked.length >= 2 && (
           <>
-            <Verdict verdict={verdict} team={team} behindCount={behindCount} onShowBehind={showBehind} />
+            <Verdict verdict={verdict} team={team} behindCount={behindCount} onShowBehind={showBehind} onShowAreas={showAreas} />
 
             <div className="h2h-tools">
               <fieldset className="views" id="view-control" tabIndex={-1}>
@@ -144,8 +155,8 @@ export function HeadToHead({ scores, ids, team, onRemove, onSelect, onAnnounce }
             </div>
 
             <SectionNav groups={visible} />
-            <MatrixTable picked={picked} groups={visible} winner={winner} team={team} onRemove={onRemove} />
-            <Stacks picked={picked} groups={visible} winner={winner} team={team} />
+            <MatrixTable picked={picked} groups={visible} winner={winner} certainty={certainty} team={team} onRemove={onRemove} />
+            <Stacks picked={picked} groups={visible} winner={winner} certainty={certainty} team={team} />
           </>
         )}
       </div>
@@ -171,7 +182,7 @@ type Visible = { g: Group; rows: Classified[] }[]
 
 /** Message for a group with no rows in the key view; it never claims more than the ranking can show. */
 function emptyNote(g: Group, picked: Scored[]) {
-  if (g.key === 'score') return 'Score areas summarise the rows below; see the complete matrix for them'
+  if (g.key === 'score') return 'The verdict breaks the score down by area. Area scores for every pick are in the complete matrix'
   const other = g.rows.filter((r) => statusOf(r, picked) !== 'same').length
   if (!other) return 'Same for all your picks here'
   return `No ranked differences; ${other} other ${other === 1 ? 'difference is' : 'differences are'} in the complete matrix`
@@ -208,15 +219,18 @@ function SectionNav({ groups }: { groups: Visible }) {
   )
 }
 
-function MatrixTable({ picked, groups, winner, team, onRemove }: {
-  picked: Scored[]; groups: Visible; winner?: Scored; team: number; onRemove: Props['onRemove']
+/** The verdict and how far its winner is ahead, for the labels every surface repeats. */
+type Certainty = { verdict: VerdictT; margin: Margin | null }
+
+function MatrixTable({ picked, groups, winner, certainty, team, onRemove }: {
+  picked: Scored[]; groups: Visible; winner?: Scored; certainty: Certainty; team: number; onRemove: Props['onRemove']
 }) {
   const names = picked.map((s) => s.product.name).join(', ')
   const winnerId = winner?.product.id
   return (
     <table className="matrix" data-count={picked.length}>
       <caption className="sr-only">
-        Head-to-head comparison of {names} for a team of {team}.{winner ? ` ${winner.product.name} is best overall.` : ''}
+        Head-to-head comparison of {names} for a team of {team}.{certainty.margin ? ` ${captionLine(certainty.verdict, certainty.margin)}` : ''}
       </caption>
       <thead>
         <tr>
@@ -227,7 +241,8 @@ function MatrixTable({ picked, groups, winner, team, onRemove }: {
               <th key={s.product.id} scope="col" className="m-head" data-best={best || undefined}>
                 <span className="m-head-top">
                   <span className="slot-n" aria-hidden="true">{i + 1}</span>
-                  {best && <span className="best-label"><BestGlyph />Best overall</span>}
+                  {best && <BestLabel margin={certainty.margin} />}
+                  {winner && <Contender margin={certainty.margin} s={s} winner={winner} />}
                   {!s.cost.eligible && <span className="out-label">Can't serve {team}</span>}
                 </span>
                 <span className="m-head-name"><Mark product={s.product} size={28} />{s.product.name}</span>
@@ -287,7 +302,7 @@ function MatrixTable({ picked, groups, winner, team, onRemove }: {
 }
 
 /** Narrow screens: attribute-first stacks keep every pick's value for one attribute together. */
-function Stacks({ picked, groups, winner, team }: { picked: Scored[]; groups: Visible; winner?: Scored; team: number }) {
+function Stacks({ picked, groups, winner, certainty, team }: { picked: Scored[]; groups: Visible; winner?: Scored; certainty: Certainty; team: number }) {
   const winnerId = winner?.product.id
   return (
     <div className="stacks">
@@ -301,7 +316,8 @@ function Stacks({ picked, groups, winner, team }: { picked: Scored[]; groups: Vi
               <Mark product={s.product} size={18} />
               <span className="stack-actions-name">
                 {s.product.name}
-                {best && <span className="best-label"><BestGlyph />Best overall</span>}
+                {best && <BestLabel margin={certainty.margin} />}
+                {winner && <Contender margin={certainty.margin} s={s} winner={winner} />}
                 {!s.cost.eligible && <span className="out-label">Can't serve {team}</span>}
               </span>
               <Visit product={s.product} placement="stack" variant={best ? 'solid' : 'quiet'} note={s.cost.eligible ? undefined : unservable(s)} />
@@ -315,7 +331,8 @@ function Stacks({ picked, groups, winner, team }: { picked: Scored[]; groups: Vi
             <span className="slot-n" aria-hidden="true">{i + 1}</span>
             <Mark product={s.product} size={18} />
             <span className="stack-key-name">{s.product.name}</span>
-            {s.product.id === winnerId && <span className="best-label"><BestGlyph /><span className="best-text">Best</span><span className="sr-only"> overall</span></span>}
+            {s.product.id === winnerId && <BestLabel margin={certainty.margin} short />}
+            {winner && <Contender margin={certainty.margin} s={s} winner={winner} short />}
           </li>
         ))}
       </ol>
@@ -361,6 +378,41 @@ function Stacks({ picked, groups, winner, team }: { picked: Scored[]; groups: Vi
       })}
     </div>
   )
+}
+
+/**
+ * "Best overall", then how far ahead on its own full-width line when the lead is narrow or a tie-break.
+ * short: the phone's sticky key, "Best · tied" on one line, read out in full.
+ */
+function BestLabel({ margin, short }: { margin: Margin | null; short?: boolean }) {
+  if (short) {
+    const q = keyQualifier(margin)
+    return (
+      <span className="best-label">
+        <BestGlyph /><span className="best-text">Best</span>
+        <span className="sr-only"> overall{q ? `, ${q.spoken}` : ''}</span>
+        {q && <span className="key-qual" aria-hidden="true">· {q.shown}</span>}
+      </span>
+    )
+  }
+  const qual = winnerQualifier(margin)
+  return (
+    <>
+      <span className="best-label"><BestGlyph />Best overall</span>
+      {qual && <span className="best-qual"><span className="sr-only">, </span>{qual}</span>}
+    </>
+  )
+}
+
+/** A pick level with the winner or within the narrow band: plain text, no winner colour. */
+function Contender({ margin, s, winner, short }: { margin: Margin | null; s: Scored; winner: Scored; short?: boolean }) {
+  if (s === winner) return null
+  if (short) {
+    const k = keyContender(margin, s, winner)
+    return k ? <span className="contender-tag"><span aria-hidden="true">{k.shown}</span><span className="sr-only">{k.spoken}</span></span> : null
+  }
+  const tag = contenderTag(margin, s, winner)
+  return tag ? <span className="contender-tag">{tag}</span> : null
 }
 
 function BestGlyph() {

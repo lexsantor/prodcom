@@ -1,6 +1,8 @@
-import { adminCoverage, coreCoverage, usd, AREAS, type Area, type Scored, type Verdict as V } from '../lib/score.ts'
+import { adminCoverage, coreCoverage, marginOf, usd, AREAS, type Area, type Scored, type Verdict as V } from '../lib/score.ts'
+import { join, kicker, whyLine } from '../lib/certainty.ts'
 import { focusVisible } from '../lib/focus.ts'
 import { Mark } from './Mark.tsx'
+import { ScoreBreakdown } from './ScoreBreakdown.tsx'
 import { Visit } from './Visit.tsx'
 
 const CURVE = { gentle: 'gentle', moderate: 'moderate', steep: 'steep' } as const
@@ -61,19 +63,18 @@ function EvidenceLink({ area }: { area: Area }) {
   )
 }
 
-const join = (items: string[]) =>
-  items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`
-
 interface VerdictProps {
   verdict: V
   team: number
   /** rows where the winner is behind another pick */
   behindCount: number
   onShowBehind: () => void
+  /** opens the complete matrix at the score areas; offered when the breakdown leaves picks out */
+  onShowAreas: () => void
 }
 
-export function Verdict({ verdict, team, behindCount, onShowBehind }: VerdictProps) {
-  const { winner, ranked, excluded, tieBreak, leaders } = verdict
+export function Verdict({ verdict, team, behindCount, onShowBehind, onShowAreas }: VerdictProps) {
+  const { winner, ranked, excluded, leaders } = verdict
   const excludedNote = excluded.length > 0 && (
     <p className="verdict-excluded">
       {join(excluded.map((s) => s.product.name))} {excluded.length === 1 ? 'is' : 'are'} left out of the verdict:{' '}
@@ -102,29 +103,18 @@ export function Verdict({ verdict, team, behindCount, onShowBehind }: VerdictPro
     areas: AREAS.filter((a) => leaders[a].some((l) => l.product.id === s.product.id) && !winnerLeads.includes(a)),
   })).filter((o) => o.areas.length > 0)
 
-  const margin = winner.overall - runnerUp.overall
-  const why = tieBreak
-    ? `It ties ${runnerUp.product.name} on ${winner.overall} and ranks first on ${
-        tieBreak === 'rating'
-          ? `its higher user rating (${winner.product.rating.toFixed(1)} against ${runnerUp.product.rating.toFixed(1)})`
-          : tieBreak === 'price' ? 'its lower price for your team' : 'name order, as the two are otherwise equal'
-      }.`
-    : `It scores ${winner.overall}, ${margin} ${margin === 1 ? 'point' : 'points'} ahead of ${runnerUp.product.name}.`
+  const margin = marginOf(verdict)!
 
   return (
-    <div className="verdict">
-      <p className="verdict-kicker">
-        {excluded.length > 0
-          ? `Best overall: the highest Prodcom score of your ${ranked.length} picks that can serve a team of ${team}`
-          : `Best overall: the highest Prodcom score of your ${ranked.length}, for a team of ${team}`}
-      </p>
+    <div className="verdict" data-margin={margin.kind}>
+      <p className="verdict-kicker">{kicker(verdict, margin, team)}</p>
       <h3 className="verdict-title">
         <Mark product={winner.product} size={28} />
         <span className="verdict-name">{winner.product.name}</span>
         <span className="verdict-score"><span className="num">{winner.overall}</span><span className="muted"> / 100</span></span>
       </h3>
       <p className="verdict-why">
-        {why}{' '}
+        {whyLine(verdict, margin)}{' '}
         {winnerLeads.length > 0
           ? `Among your picks it leads on ${join(winnerLeads.map((a) => AREA_PHRASE[a]))}.`
           : 'It leads no single area, but has the best balance across all six.'}
@@ -135,6 +125,13 @@ export function Verdict({ verdict, team, behindCount, onShowBehind }: VerdictPro
           ? <span className="muted small">{winner.product.pricing.trialDays}-day free trial</span>
           : winner.product.pricing.freePlan ? <span className="muted small">Free version available</span> : null}
       </p>
+
+      <ScoreBreakdown
+        winner={winner}
+        runnerUp={runnerUp}
+        margin={margin}
+        onShowAreas={ranked.length + excluded.length > 2 ? onShowAreas : undefined}
+      />
 
       <h4 className="verdict-sub">Where the others are stronger</h4>
       {others.length > 0 ? (

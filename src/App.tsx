@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { PRODUCT_BY_ID } from './data/products.ts'
-import { TEAM_DEFAULT, costFor, scoreCatalog } from './lib/score.ts'
+import { TEAM_DEFAULT, costFor, marginOf, scoreCatalog, verdictFor } from './lib/score.ts'
+import { announceLine } from './lib/certainty.ts'
 import { MAX_SELECTED, parseCompare, parseTeam, replace, toggle } from './lib/selection.ts'
 import { Ledger } from './components/Ledger.tsx'
 import { HeadToHead } from './components/HeadToHead.tsx'
@@ -174,7 +175,9 @@ export function App() {
     }, 1000)
     setTeam(n)
     setTrackContext({ team_size: n })
-    say([`Prices and scores updated for a team of ${n}.`, ...eligibilityChanges(ids, team, n)].join(' '))
+    const verdict = verdictFor(ids, scoreCatalog(n))
+    const margin = marginOf(verdict)
+    say([`Prices and scores updated for a team of ${n}.`, ...eligibilityChanges(ids, team, n), ...(margin ? [announceLine(verdict, margin)] : [])].join(' '))
   }
 
   return (

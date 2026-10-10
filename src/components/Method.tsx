@@ -1,6 +1,9 @@
 import { CORE_FEATURES, ADMIN_FEATURES } from '../data/products.ts'
 import { AREAS, AREA_LABEL, CURVE_SCORE, SUPPORT_SCORE, WEIGHTS, type Area } from '../lib/score.ts'
 
+/** What one core feature adds through capability alone, in points of the score. */
+const FEATURE_POINTS = ((100 / CORE_FEATURES.length) * WEIGHTS.capability / 100).toFixed(1)
+
 const HOW: Record<Area, string> = {
   capability: `Share of the ${CORE_FEATURES.length} core features included. A limited feature counts as half.`,
   value: 'Capability per dollar per person at your team size, compared with the best value in the whole catalogue. Square-root scaled, so the cheapest tool cannot win on price alone.',
@@ -22,7 +25,13 @@ export function Method() {
           </p>
           <p>
             Products that cannot serve your team (because of a seat limit) get no value points and are left out of the verdict.
-            Equal scores are decided by user rating, then lower price, then name.
+          </p>
+          <p>
+            <strong>Close scores.</strong> Scores are rounded to whole numbers, and products are ranked on the rounded score.
+            Equal scores are decided by user rating, then lower price, then name. A lead of 1 or 2 points is labelled a narrow lead:
+            before rounding the gap can be under a point, and for scale, one core feature adds about {FEATURE_POINTS} points through
+            capability alone. A lead of 3 points or more is shown simply as best overall. Either way the lead reflects these
+            fixed weights, not your priorities.
           </p>
           <p>
             The score ranks overall balance. It does not know your workflow, which is why the head-to-head lists where each

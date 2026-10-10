@@ -103,6 +103,13 @@ export interface Scored {
   overall: number
 }
 
+/** An area's share of the overall score, in points out of 100. */
+const weighted = (areas: Record<Area, number>, a: Area) => (areas[a] * WEIGHTS[a]) / 100
+const weightedSum = (areas: Record<Area, number>) => AREAS.reduce((sum, a) => sum + weighted(areas, a), 0)
+
+/** The score before rounding; `overall` is this rounded, and only `overall` is shown and ranked. */
+export const unroundedScore = (s: Scored) => weightedSum(s.areas)
+
 /**
  * Scores every product for one team size. Value is measured against the best
  * capability-per-dollar in the whole catalogue (not just the selection), so a
@@ -119,7 +126,7 @@ export function scoreCatalog(team: number): Map<string, Scored> {
       admin: coveragePct(adminCoverage(p)),
       support: SUPPORT_SCORE[p.support.tier],
     }
-    const overall = Math.round(AREAS.reduce((sum, a) => sum + (areas[a] * WEIGHTS[a]) / 100, 0))
+    const overall = Math.round(weightedSum(areas))
     return [p.id, { product: p, cost: costFor(p, team), areas, overall }]
   }))
 }
@@ -165,11 +172,7 @@ export function verdictFor(ids: readonly string[], scores: Map<string, Scored>):
   const [first, second] = ranked
   const winner = ranked.length >= 2 ? first : null
 
-  let tieBreak: TieBreak | null = null
-  if (winner && second && winner.overall === second.overall) {
-    tieBreak = winner.product.rating !== second.product.rating ? 'rating'
-      : winner.cost.total !== second.cost.total ? 'price' : 'name'
-  }
+  const tieBreak = winner && second && winner.overall === second.overall ? tieBreakBetween(winner, second) : null
 
   const leaders = Object.fromEntries(AREAS.map((a) => {
     const top = Math.max(...ranked.map((s) => Math.round(s.areas[a])))
@@ -179,6 +182,71 @@ export function verdictFor(ids: readonly string[], scores: Map<string, Scored>):
   })) as Record<Area, Scored[]>
 
   return { ranked, excluded, winner, tieBreak, leaders }
+}
+
+/** Which step of the recommendation order separates two products on the same score. */
+export function tieBreakBetween(a: Scored, b: Scored): TieBreak {
+  return a.product.rating !== b.product.rating ? 'rating' : a.cost.total !== b.cost.total ? 'price' : 'name'
+}
+
+/**
+ * The largest gap, in displayed points, still called a narrow lead. Scores are rounded, so a displayed gap of g is an
+ * unrounded gap between g - 1 and g + 1: at 2 or less it can be smaller than what one core feature adds through
+ * capability alone (25% of 1/15, about 1.7 points); from 3 it is always above 2. A labelling convention, not a test of
+ * significance: it never changes the ranking.
+ */
+export const NARROW_MAX = 2
+
+export interface Margin {
+  kind: 'tie' | 'narrow' | 'lead'
+  /** the winner's displayed score minus the runner-up's */
+  gap: number
+  runnerUp: Scored
+  /** other picks on the winner's score, in recommendation order */
+  tied: Scored[]
+  /** other picks 1 to NARROW_MAX points behind the winner */
+  close: Scored[]
+  /** picks sharing the runner-up's score, the runner-up included */
+  next: Scored[]
+}
+
+/** How far the winner is ahead, among the picks that can serve the team; null without a verdict. */
+export function marginOf(v: Verdict): Margin | null {
+  const [winner, runnerUp, ...rest] = v.ranked
+  if (!v.winner || !runnerUp) return null
+  const others = [runnerUp, ...rest]
+  const gap = winner.overall - runnerUp.overall
+  return {
+    kind: gap === 0 ? 'tie' : gap <= NARROW_MAX ? 'narrow' : 'lead',
+    gap,
+    runnerUp,
+    tied: others.filter((s) => s.overall === winner.overall),
+    close: others.filter((s) => winner.overall - s.overall >= 1 && winner.overall - s.overall <= NARROW_MAX),
+    next: others.filter((s) => s.overall === runnerUp.overall),
+  }
+}
+
+/** What each area adds to `a`'s unrounded score over `b`'s, in points; positive favours `a`. Sums to the unrounded gap. */
+export function contributions(a: Scored, b: Scored): { area: Area; points: number }[] {
+  return AREAS.map((area) => ({ area, points: weighted(a.areas, area) - weighted(b.areas, area) }))
+}
+
+export interface Breakdown {
+  /** areas where `a` gains, largest first; points are positive and rounded to 0.1 */
+  forA: { area: Area; points: number }[]
+  forB: { area: Area; points: number }[]
+  /** areas whose difference rounds to 0.0 */
+  even: Area[]
+}
+
+/** Contributions as shown: one decimal, split by who gains. Rounding the magnitude means no -0 can appear. */
+export function breakdown(a: Scored, b: Scored): Breakdown {
+  const shown = contributions(a, b).map((c) => ({ area: c.area, sign: Math.sign(c.points), points: Math.round(Math.abs(c.points) * 10) / 10 }))
+  const side = (sign: number) => shown
+    .filter((c) => c.points > 0 && c.sign === sign)
+    .sort((x, y) => y.points - x.points)
+    .map(({ area, points }) => ({ area, points }))
+  return { forA: side(1), forB: side(-1), even: shown.filter((c) => c.points === 0).map((c) => c.area) }
 }
 
 /** The best `count` products that can serve the team, leaving out `exclude`. */

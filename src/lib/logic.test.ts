@@ -177,3 +177,128 @@ test('comparison entry: once per set of 2+ picks, shared by every trigger', asyn
   assert.equal(startComparison(['taskara', 'orbitask'], 'link'), false)
   assert.equal(startComparison(['taskara', 'orbitask', 'veloxa'], 'scroll'), true, 'a new set is a new comparison')
 })
+
+// UX-1 / UX-2: how certain the winner is, and where its score comes from.
+const fake = (base: Scored, overall: number, rating = base.product.rating, total = base.cost.total): Scored =>
+  ({ ...base, overall, product: { ...base.product, rating }, cost: { ...base.cost, total } })
+const setOf = (...list: Scored[]) => new Map(list.map((s) => [s.product.id, s]))
+
+test('margin: 0 is a tie, 1 and 2 a narrow lead, 3 or more a lead', async () => {
+  const { marginOf } = await import('./score.ts')
+  const s = scoreCatalog(10), a = s.get('northlane')!, b = s.get('mondray')!
+  const kinds = [0, 1, 2, 3, 9].map((gap) => {
+    const m = marginOf(verdictFor(['northlane', 'mondray'], setOf(fake(a, 70 + gap, 4.9), fake(b, 70, 4.1))))!
+    return [m.kind, m.gap]
+  })
+  assert.deepEqual(kinds, [['tie', 0], ['narrow', 1], ['narrow', 2], ['lead', 3], ['lead', 9]])
+  assert.equal(marginOf(verdictFor(['northlane'], s)), null, 'no verdict, no margin')
+})
+
+test('margin: every pick on the winning score is tied, every pick within 2 points is close', async () => {
+  const { marginOf } = await import('./score.ts')
+  const tie3 = marginOf(verdictFor(['fernwork', 'taskara', 'cairnpoint'], scoreCatalog(31)))!
+  assert.equal(tie3.kind, 'tie')
+  assert.deepEqual(tie3.tied.map((x) => x.product.id), ['taskara', 'cairnpoint'])
+  const s = scoreCatalog(10)
+  const set = setOf(fake(s.get('northlane')!, 70), fake(s.get('mondray')!, 69), fake(s.get('taskara')!, 68), fake(s.get('fernwork')!, 60))
+  const m = marginOf(verdictFor(['northlane', 'mondray', 'taskara', 'fernwork'], set))!
+  assert.equal(m.kind, 'narrow')
+  assert.deepEqual(m.close.map((x) => x.product.id), ['mondray', 'taskara'])
+  assert.deepEqual(m.tied, [])
+})
+
+test('margin: a pick that cannot serve the team is never a contender', async () => {
+  const { marginOf } = await import('./score.ts')
+  const m = marginOf(verdictFor(['quillo', 'northlane', 'mondray'], scoreCatalog(10)))!
+  assert.equal(m.runnerUp.product.id, 'mondray')
+  assert.ok(![...m.tied, ...m.close, ...m.next].some((x) => x.product.id === 'quillo'))
+})
+
+test('ties are explained by the rule that broke them: rating, price, name, and never as a lead', async () => {
+  const { marginOf } = await import('./score.ts')
+  const { whyLine } = await import('./certainty.ts')
+  const s = scoreCatalog(10), a = s.get('northlane')!, b = s.get('mondray')!
+  const why = (x: Scored, y: Scored) => { const v = verdictFor(['northlane', 'mondray'], setOf(x, y)); return { v, text: whyLine(v, marginOf(v)!) } }
+  const byPrice = why(fake(a, 70, 4.5, 90), fake(b, 70, 4.5, 140))
+  assert.equal(byPrice.v.tieBreak, 'price')
+  assert.match(byPrice.text, /Northlane and Mondray both score 70\./)
+  assert.match(byPrice.text, /costs less for your team \(\$90 against \$140 a month\)/)
+  const byName = why(fake(a, 70, 4.5, 90), fake(b, 70, 4.5, 90))
+  assert.equal(byName.v.tieBreak, 'name')
+  assert.match(byName.text, /comes first in name order/)
+  const real = verdictFor(['fernwork', 'taskara', 'cairnpoint'], scoreCatalog(31))
+  const three = whyLine(real, marginOf(real)!)
+  assert.match(three, /^Fernwork, Taskara and Cairnpoint all score 68\./)
+  assert.match(three, /Fernwork is rated 4\.6, against 4\.2 for Taskara and 3\.9 for Cairnpoint/)
+  for (const t of [byPrice.text, byName.text, three]) assert.doesNotMatch(t, /ahead|lead/i)
+})
+
+test('a tie on the rounded score is a tie, even where the unrounded scores differ either way', async () => {
+  const { marginOf, unroundedScore } = await import('./score.ts')
+  const v = verdictFor(['taskara', 'orbitask'], scoreCatalog(10))
+  assert.notEqual(unroundedScore(v.winner!), unroundedScore(v.ranked[1]))
+  assert.equal(marginOf(v)!.kind, 'tie')
+  // somewhere the unrounded score favours the runner-up; the rounded tie and the rating rule still decide
+  let found = false
+  for (let t = 1; t <= 500 && !found; t++) {
+    const sc = scoreCatalog(t)
+    for (const x of PRODUCTS) for (const y of PRODUCTS) {
+      if (found || x.id >= y.id) continue
+      const w = verdictFor([x.id, y.id], sc)
+      if (w.winner && w.tieBreak && unroundedScore(w.ranked[1]) > unroundedScore(w.winner)) {
+        found = true
+        assert.equal(marginOf(w)!.kind, 'tie')
+        assert.ok(w.winner.product.rating > w.ranked[1].product.rating)
+      }
+    }
+  }
+  assert.ok(found)
+})
+
+test('narrow and clear leads state the displayed gap and claim no more certainty', async () => {
+  const { marginOf } = await import('./score.ts')
+  const { whyLine } = await import('./certainty.ts')
+  const s = scoreCatalog(10)
+  const narrow = verdictFor(['northlane', 'mondray'], s)
+  assert.equal(whyLine(narrow, marginOf(narrow)!), 'It scores 74, 2 points ahead of Mondray: a narrow lead, so what matters most to your team can change the choice.')
+  const lead = verdictFor(['northlane', 'taskara'], s)
+  assert.equal(whyLine(lead, marginOf(lead)!), 'It scores 74, 6 points ahead of Taskara.')
+  const set = setOf(fake(s.get('northlane')!, 70), fake(s.get('mondray')!, 69), fake(s.get('taskara')!, 68))
+  const two = verdictFor(['northlane', 'mondray', 'taskara'], set)
+  assert.match(whyLine(two, marginOf(two)!), /^It scores 70, 1 point ahead of Mondray and 2 ahead of Taskara: a narrow lead/)
+  const level = setOf(fake(s.get('northlane')!, 74), fake(s.get('mondray')!, 70), fake(s.get('fernwork')!, 70))
+  const tiedNext = verdictFor(['northlane', 'mondray', 'fernwork'], level)
+  // listed in recommendation order: Fernwork (4.6) before Mondray (4.1) on the same score
+  assert.equal(whyLine(tiedNext, marginOf(tiedNext)!), 'It scores 74, 4 points ahead of Fernwork and Mondray, which both score 70.')
+  for (const v of [narrow, lead, tiedNext]) assert.doesNotMatch(whyLine(v, marginOf(v)!), /significant|decisive|certain|robust/i)
+})
+
+test('area contributions come from the score itself and add up to the unrounded difference', async () => {
+  const { contributions, unroundedScore } = await import('./score.ts')
+  for (const t of [1, 6, 10, 31, 100, 500]) {
+    const sc = scoreCatalog(t)
+    for (const s of sc.values()) assert.equal(s.overall, Math.round(unroundedScore(s)), 'the shown score is the rounded weighted sum')
+    for (const x of sc.values()) for (const y of sc.values()) {
+      const sum = contributions(x, y).reduce((acc, c) => acc + c.points, 0)
+      assert.ok(Math.abs(sum - (unroundedScore(x) - unroundedScore(y))) < 1e-9)
+    }
+  }
+  const s = scoreCatalog(10)
+  const byArea = Object.fromEntries(contributions(s.get('northlane')!, s.get('mondray')!).map((c) => [c.area, Number(c.points.toFixed(1))]))
+  assert.deepEqual(byArea, { capability: -3.3, value: 4.6, ease: 4.5, rating: 3, admin: -2.5, support: -4 })
+})
+
+test('the breakdown rounds to one decimal, sorts by size and never shows a signed zero', async () => {
+  const { breakdown } = await import('./score.ts')
+  const s = scoreCatalog(10), n = s.get('northlane')!
+  const b = breakdown(n, s.get('mondray')!)
+  assert.deepEqual(b.forA, [{ area: 'value', points: 4.6 }, { area: 'ease', points: 4.5 }, { area: 'rating', points: 3 }])
+  assert.deepEqual(b.forB, [{ area: 'support', points: 4 }, { area: 'capability', points: 3.3 }, { area: 'admin', points: 2.5 }])
+  assert.deepEqual(b.even, [])
+  const same = breakdown(n, n)
+  assert.deepEqual([same.forA, same.forB, same.even.length], [[], [], 6])
+  // a difference below 0.05 points rounds to nothing: even, not +0.0 or -0.0
+  const nudged: Scored = { ...n, areas: { ...n.areas, rating: n.areas.rating - 0.2 } } // 0.2 × 15% = 0.03 points
+  assert.deepEqual(breakdown(n, nudged), { forA: [], forB: [], even: ['capability', 'value', 'ease', 'rating', 'admin', 'support'] })
+  for (const c of [...b.forA, ...b.forB]) assert.ok(c.points > 0 && !Object.is(c.points, -0))
+})
